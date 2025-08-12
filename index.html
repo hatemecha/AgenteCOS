@@ -318,6 +318,7 @@
     const DEFAULT_HOST = 'http://localhost:5678';
     const storedHost = localStorage.getItem('COS_N8N_HOST');
     const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
     // ===== Elements =====
@@ -342,6 +343,7 @@
     const speakBtn = document.getElementById('speakBtn');
     const hostInput = document.getElementById('hostInput');
     const saveHostBtn = document.getElementById('saveHostBtn');
+    if (storedHost) hostInput.value = storedHost;
     const autoSpeak = document.getElementById('autoSpeak');
     const micPermissionAlert = document.getElementById('micPermissionAlert');
     const enableMicBtn = document.getElementById('enableMicBtn');
