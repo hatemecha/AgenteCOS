@@ -311,6 +311,7 @@
     </div>
   </div>
 
+    <script src="sanitize.js"></script>
   <script>
     // ===== Config =====
     const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
@@ -377,9 +378,6 @@
       statusIndicator.style.borderColor = (colors[type]||'#10b981')+'33';
     }
 
-    function sanitize(str){
-      return (str||'').replace(/[&<>"'`=\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]));
-    }
 
     function showResponse(query, response){
       const safeQuery = sanitize(query);
