@@ -311,11 +311,14 @@
     </div>
   </div>
 
+    <script src="sanitize.js"></script>
   <script>
     // ===== Config =====
     const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
+    const DEFAULT_HOST = 'http://localhost:5678';
     const storedHost = localStorage.getItem('COS_N8N_HOST');
-    const WEBHOOK_URL = `${storedHost || 'http://localhost:5678'}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+    const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
     // ===== Elements =====
@@ -345,6 +348,8 @@
     const micPermissionAlert = document.getElementById('micPermissionAlert');
     const enableMicBtn = document.getElementById('enableMicBtn');
     const skipMicBtn = document.getElementById('skipMicBtn');
+
+    if (storedHost) hostInput.value = storedHost;
 
     // ===== State =====
     let isListening = false, isProcessing = false, currentMode = 'voice';
@@ -379,9 +384,6 @@
       statusIndicator.style.borderColor = (colors[type]||'#10b981')+'33';
     }
 
-    function sanitize(str){
-      return (str||'').replace(/[&<>"'`=\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]));
-    }
 
     function showResponse(query, response){
       const safeQuery = sanitize(query);
@@ -488,7 +490,7 @@
 
 
 
-    function showPermissionHelper(){ alert('Para usar "Hola COS":\n1) Haz clic en el ícono 🔒/🎤 de la barra de direcciones\n2) Permite el micrófono\n3) Recarga la página\n\nTambién puedes:\n• Tocar el circulo\n• Usar modo texto\n• Presionar la barra espaciadora'); }
+    function showPermissionHelper(){ alert('Para usar "Hola COS":\n1) Haz clic en el ícono 🔒/🎤 de la barra de direcciones\n2) Permite el micrófono\n3) Recarga la página\n\nTambién puedes:\n• Tocar el círculo\n• Usar modo texto\n• Presionar la barra espaciadora'); }
 
     function startWakeWordDetection(){ if (wakeWordRecognition && isWakeWordActive && !isListening && !isProcessing){ try{ wakeWordRecognition.start(); wakeWordHint.style.display='block'; }catch{} } }
 
