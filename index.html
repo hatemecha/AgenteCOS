@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>COS‑GPT · Asistente de Voz para Clínica de Ojos del Sud</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --primary-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      --secondary-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      --cos-blue: #2563eb; --cos-red: #ef4444; --dark-bg: #0a0a0a;
+      --glass-bg: rgba(255,255,255,.08); --glass-border: rgba(255,255,255,.18);
+      --text-primary:#fff; --text-secondary:rgba(255,255,255,.72);
+      --shadow-glow: 0 0 50px rgba(37,99,235,.28);
+    }
+
+    body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','SF Pro Display',system-ui,sans-serif; background: var(--dark-bg); color: var(--text-primary); height: 100vh; overflow: hidden; position: relative; }
+
+    /* Background */
+    .animated-bg { position: fixed; inset: 0; z-index: -2; background: radial-gradient(ellipse at 30% 20%, #151633 0%, #0f1126 55%, #0a0a0a 100%); }
+    .particles { position: fixed; inset: 0; z-index: -1; overflow: hidden; }
+    .particle { position: absolute; border-radius: 50%; animation: float 6s ease-in-out infinite; }
+    .particle.blue { background: rgba(37,99,235,.12); }
+    .particle.red  { background: rgba(239,68,68,.12); }
+    @keyframes float { 0%,100%{transform:translateY(0) rotate(0);opacity:.35} 50%{transform:translateY(-18px) rotate(180deg);opacity:.85}}
+
+    /* Layout */
+    .container { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; position: relative; }
+
+    /* Header */
+    .header { position: absolute; top: 1.25rem; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
+    .logo { display: flex; align-items: center; gap: .75rem; justify-content: center; margin-bottom: .75rem; }
+    .logo-icon { width: 56px; height:56px; display:grid; place-items:center; animation: logoGlow 3s ease-in-out infinite alternate; }
+    .cos-logo{ position:relative; width:48px; height:48px; }
+    .cos-c-outer{ position:absolute; inset:0; border:4px solid var(--cos-blue); border-radius:50%; border-right-color:transparent; border-bottom-color:transparent; animation: spin 4s linear infinite; }
+    .cos-c-inner{ position:absolute; inset:7px; border:3px solid var(--cos-blue); border-radius:50%; border-right-color:transparent; border-bottom-color:transparent; animation: spinR 3s linear infinite; }
+    .cos-dot{ position:absolute; top:50%; right:-2px; width:12px; height:12px; border-radius:50%; background:var(--cos-red); transform:translateY(-50%); animation:pulseDot 2s ease-in-out infinite; }
+    .logo-text{ font-size:1.65rem; font-weight:800; letter-spacing:.2px; background:var(--primary-gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+
+    @keyframes logoGlow{0%{filter:drop-shadow(0 0 5px rgba(37,99,235,.28))}100%{filter:drop-shadow(0 0 18px rgba(37,99,235,.75))}}
+    @keyframes spin{to{transform:rotate(360deg)}} @keyframes spinR{to{transform:rotate(-360deg)}}
+    @keyframes pulseDot{0%,100%{transform:translateY(-50%) scale(1);opacity:1}50%{transform:translateY(-50%) scale(1.32);opacity:.8}}
+
+    /* Status */
+    .status-indicator{ display:inline-flex; align-items:center; gap:.5rem; padding:.5rem .9rem; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:999px; backdrop-filter: blur(16px); font-size:.92rem; transition: .25s ease; }
+    .status-dot{ width:8px; height:8px; border-radius:50%; background:#10b981; animation:pulse 2s infinite; }
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.22)}}
+
+    /* Mode toggle */
+    .mode-toggle{ position:absolute; top:1rem; right:1rem; display:flex; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:25px; overflow:hidden; backdrop-filter: blur(16px); }
+    .mode-btn{ padding:.65rem 1.2rem; background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:.95rem; position:relative; transition:.25s ease; }
+    .mode-btn.active{ color:var(--text-primary); }
+    .mode-btn.active::before{ content:""; position:absolute; inset:0; background:var(--primary-gradient); z-index:-1; border-radius:20px; animation:fadeIn .25s ease; }
+    @keyframes fadeIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+
+    /* Voice UI */
+    .voice-interface{ display:flex; flex-direction:column; align-items:center; gap:2.4rem; transition: .45s cubic-bezier(.4,0,.2,1); }
+    .voice-interface.text-mode{ transform: translateY(-90px); }
+    .voice-orb-container{ position:relative; display:grid; place-items:center; }
+    .voice-orb{ width:200px; height:200px; border-radius:50%; background:var(--primary-gradient); display:grid; place-items:center; cursor:pointer; transition:.35s cubic-bezier(.4,0,.2,1); box-shadow: var(--shadow-glow), inset 0 0 48px rgba(255,255,255,.08); position:relative; overflow:hidden; }
+    .voice-orb::before{ content:""; position:absolute; inset:15px; border-radius:50%; background: rgba(255,255,255,.08); backdrop-filter: blur(8px); transition:.3s; }
+    .voice-orb:hover{ transform:scale(1.04); box-shadow: 0 0 90px rgba(37,99,235,.55), inset 0 0 60px rgba(255,255,255,.12); }
+    .voice-orb.listening{ animation:listening 1.6s ease-in-out infinite; background:var(--success-gradient); }
+    .voice-orb.processing{ animation:spin 1.8s linear infinite; background:var(--secondary-gradient); }
+    .voice-orb.wake-word-detected{ animation:wakePulse .8s ease-out; }
+    .voice-orb.disabled{ opacity: 0.5; cursor: not-allowed; background: #666; }
+    @keyframes listening{0%,100%{transform:scale(1); box-shadow:0 0 48px rgba(16,185,129,.45)}50%{transform:scale(1.085); box-shadow:0 0 108px rgba(16,185,129,.70)}}
+    @keyframes wakePulse{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
+
+    .orb-icon{ font-size:3.9rem; text-shadow:0 0 18px rgba(255,255,255,.45); transition:.25s; z-index:1; }
+
+    /* Visualizer rings */
+    .visualizer-rings{ position:absolute; inset:0; pointer-events:none; }
+    .ring{ position:absolute; border:2px solid rgba(37,99,235,.32); border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); opacity:0; }
+    .ring-1{ width:250px; height:250px } .ring-2{ width:300px; height:300px } .ring-3{ width:350px; height:350px }
+    .voice-orb.listening .ring{ animation: ring 2s ease-out infinite; border-color: rgba(16,185,129,.42); }
+    @keyframes ring{0%{transform:translate(-50%,-50%) scale(.82);opacity:.9}100%{transform:translate(-50%,-50%) scale(1.18);opacity:0}}
+
+    /* Status text */
+    .status-text{ text-align:center; max-width:660px; transition:.45s cubic-bezier(.4,0,.2,1); }
+    .main-status{ font-size:1.7rem; font-weight:700; margin-bottom:.6rem; opacity:0; transform: translateY(18px); animation:up 1s ease .45s forwards; }
+    .sub-status{ font-size:1.06rem; color:var(--text-secondary); opacity:0; transform: translateY(18px); animation:up 1s ease .65s forwards; }
+    .wake-word-hint{ margin-top:.4rem; font-size:.92rem; color:var(--cos-blue); animation: gentle 3s ease-in-out infinite; }
+    @keyframes up{to{opacity:1; transform:none}} @keyframes gentle{0%,100%{opacity:.6}50%{opacity:1}}
+
+    /* Microphone permission alert */
+    .mic-permission-alert {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      backdrop-filter: blur(20px);
+      padding: 2rem;
+      text-align: center;
+      max-width: 480px;
+      z-index: 1000;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      display: none;
+    }
+    .mic-permission-alert.show {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+    .mic-permission-alert h3 {
+      color: var(--cos-blue);
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+    .mic-permission-alert p {
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+    .mic-permission-btn {
+      background: var(--primary-gradient);
+      color: white;
+      border: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 25px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+      transition: transform 0.2s ease;
+    }
+    .mic-permission-btn:hover {
+      transform: translateY(-2px);
+    }
+    .mic-permission-btn.secondary {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+    }
+
+    /* Text input */
+    .text-input-area{ position:absolute; bottom:1.35rem; left:50%; transform:translateX(-50%); width: min(680px,92vw); opacity:0; visibility:hidden; transition:.45s cubic-bezier(.4,0,.2,1); }
+    .text-input-area.show{ opacity:1; visibility:visible; }
+    .input-container{ display:flex; gap:.85rem; align-items:flex-end; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:18px; backdrop-filter: blur(18px); padding: .9rem; box-shadow: 0 10px 28px rgba(0,0,0,.32); }
+    .message-input{ flex:1; background:none; border:none; color:var(--text-primary); font-size:1.06rem; resize:none; max-height:140px; min-height:24px; font-family:inherit; outline:none; }
+    .message-input::placeholder{ color:var(--text-secondary); }
+    .send-button{ width:46px; height:46px; border-radius:50%; border:none; cursor:pointer; display:grid; place-items:center; font-size:1.2rem; color:#fff; background:var(--primary-gradient); box-shadow: 0 5px 16px rgba(37,99,235,.48); transition:.25s; }
+    .send-button:hover:not(:disabled){ transform: translateY(-1px) scale(1.04); box-shadow:0 7px 22px rgba(37,99,235,.62) }
+    .send-button:disabled{ opacity:.55; cursor:not-allowed }
+
+    /* Quick actions */
+    .quick-actions{ position:absolute; bottom:1.35rem; left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:.8rem; justify-content:center; max-width:860px; transition:.45s cubic-bezier(.4,0,.2,1); }
+    .quick-actions.hide{ opacity:0; visibility:hidden; transform: translateX(-50%) translateY(18px); }
+    .quick-action{ padding:.7rem 1.25rem; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:22px; backdrop-filter: blur(16px); cursor:pointer; transition:.25s; font-size:.95rem; color:var(--text-primary); opacity:0; transform:translateY(24px); animation:up .8s ease forwards; }
+    .quick-action:nth-child(1){animation-delay:.95s} .quick-action:nth-child(2){animation-delay:1.05s} .quick-action:nth-child(3){animation-delay:1.15s} .quick-action:nth-child(4){animation-delay:1.25s}
+    .quick-action:hover{ background: rgba(37,99,235,.22); border-color: rgba(37,99,235,.44); transform:translateY(-3px); box-shadow: 0 9px 26px rgba(37,99,235,.28); }
+
+    /* Response overlay */
+    .response-overlay{ position: fixed; inset:0; background: rgba(0,0,0,.84); backdrop-filter: blur(20px); display:none; align-items:center; justify-content:center; z-index:100; }
+    .response-overlay.show{ display:flex; }
+    .response-content{ width:min(880px,92vw); max-height:82vh; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:18px; padding:1.35rem; overflow:auto; transform:scale(.98); animation:pop .25s ease forwards; }
+    @keyframes pop{to{transform:scale(1)}}
+    .response-header{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding-bottom:.9rem; margin-bottom:1rem; border-bottom:1px solid var(--glass-border); }
+    .response-title{ font-size:1.05rem; letter-spacing:.2px; }
+    .response-actions{ display:flex; gap:.5rem; }
+    .btn{ border:none; background:var(--glass-bg); color:var(--text-primary); border:1px solid var(--glass-border); padding:.5rem .75rem; border-radius:10px; cursor:pointer; font-size:.92rem; transition:.2s }
+    .btn:hover{ background: rgba(255,255,255,.12) }
+    .close-response{ width:40px; height:40px; display:grid; place-items:center; border-radius:999px; }
+    .response-text{ font-size:1.06rem; line-height:1.62; color:var(--text-primary); white-space:normal; word-wrap:break-word }
+
+    /* Audio / TTS */
+    .audio-controls{ display:flex; align-items:center; gap:1rem; margin-top:1rem; padding:.9rem; background:rgba(255,255,255,.06); border-radius:14px; flex-wrap:wrap; }
+    .volume-control{ display:flex; align-items:center; gap:.55rem; flex:1; min-width:220px; }
+    .volume-slider{ flex:1; height:4px; background:var(--glass-border); border-radius:2px; outline:none; cursor:pointer; }
+    .voice-quality-selector, .host-input{ background:var(--glass-bg); border:1px solid var(--glass-border); color:var(--text-primary); padding:.45rem .55rem; border-radius:8px; font-size:.92rem; }
+    .toggle{ display:inline-flex; align-items:center; gap:.4rem; font-size:.92rem; color:var(--text-secondary) }
+
+    /* Error / success */
+    .voice-orb.error{ background:var(--secondary-gradient); animation:shake .45s ease-in-out; }
+    .voice-orb.success{ background:var(--success-gradient); animation:success .6s ease-in-out; }
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+    @keyframes success{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+    /* Responsive */
+    @media (max-width: 768px){
+      .logo-text{ font-size:1.5rem }
+      .voice-orb{ width:160px; height:160px }
+      .orb-icon{ font-size:3rem }
+      .main-status{ font-size:1.38rem }
+      .text-input-area{ width: 94vw }
+      .ring-1{width:210px;height:210px} .ring-2{width:260px;height:260px} .ring-3{width:310px;height:310px}
+      .mode-toggle{ top:.75rem; right:.75rem }
+      .quick-actions{ max-width: 95vw }
+    }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div id="particles" class="particles"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header" role="banner">
+      <div class="logo" aria-label="COS‑GPT">
+        <div class="logo-icon">
+          <div class="cos-logo">
+            <div class="cos-c-outer"></div>
+            <div class="cos-c-inner"></div>
+            <div class="cos-dot"></div>
+          </div>
+        </div>
+        <div class="logo-text">COS‑GPT</div>
+      </div>
+      <div id="statusIndicator" class="status-indicator" aria-live="polite">
+        <div class="status-dot"></div><span>Sistema listo</span>
+      </div>
+    </div>
+
+    <!-- Mode toggle -->
+    <div class="mode-toggle" aria-label="Cambiar modo">
+      <button id="voiceMode" class="mode-btn active" aria-pressed="true">🎤 Voz</button>
+      <button id="textMode" class="mode-btn" aria-pressed="false">💬 Texto</button>
+    </div>
+
+    <!-- Voice interface -->
+    <div id="voiceInterface" class="voice-interface">
+      <div class="voice-orb-container">
+        <button id="voiceOrb" class="voice-orb" aria-label="Tocar para hablar" title="Tocar para hablar">
+          <div id="orbIcon" class="orb-icon">🎤</div>
+        </button>
+        <div class="visualizer-rings" aria-hidden="true">
+          <div class="ring ring-1"></div>
+          <div class="ring ring-2"></div>
+          <div class="ring ring-3"></div>
+        </div>
+      </div>
+
+      <div class="status-text">
+        <div id="mainStatus" class="main-status">¡Hola! Soy tu asistente médico</div>
+        <div id="subStatus" class="sub-status">Toca el botón para empezar a conversar</div>
+        <div id="wakeWordHint" class="wake-word-hint">O simplemente di "Hola COS"</div>
+      </div>
+    </div>
+
+    <!-- Microphone Permission Alert -->
+    <div id="micPermissionAlert" class="mic-permission-alert">
+      <h3>🎤 Permiso de Micrófono Requerido</h3>
+      <p>Para usar el asistente de voz necesitamos acceso a tu micrófono. Esto nos permite:</p>
+      <ul style="text-align: left; margin: 1rem 0; padding-left: 1.5rem;">
+        <li>Escuchar tus consultas médicas</li>
+        <li>Activar con "Hola COS"</li>
+        <li>Brindar asistencia por voz</li>
+      </ul>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        Tu privacidad está protegida. El audio no se graba ni almacena.
+      </p>
+      <div>
+        <button id="enableMicBtn" class="mic-permission-btn">🎤 Habilitar Micrófono</button>
+        <button id="skipMicBtn" class="mic-permission-btn secondary">Usar Solo Texto</button>
+      </div>
+    </div>
+
+    <!-- Text input -->
+    <div id="textInputArea" class="text-input-area" role="form">
+      <div class="input-container">
+        <textarea id="messageInput" class="message-input" placeholder="Escribe tu consulta (p. ej., '¿Tengo turnos pendientes?' o 'Reprogramar mi turno del 22/08')." rows="1" aria-label="Mensaje"></textarea>
+        <button id="sendButton" class="send-button" aria-label="Enviar">➤</button>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div id="quickActions" class="quick-actions">
+      <button class="quick-action" onclick="sendVoiceCommand('Mis turnos pendientes')">📋 Mis turnos</button>
+      <button class="quick-action" onclick="sendVoiceCommand('Ver turnos de hoy')">📅 Turnos de hoy</button>
+      <button class="quick-action" onclick="sendVoiceCommand('Agendar nuevo turno')">➕ Nuevo turno</button>
+      <button class="quick-action" onclick="sendVoiceCommand('Buscar paciente por nombre')">👤 Buscar paciente</button>
+    </div>
+  </div>
+
+  <!-- Response overlay -->
+  <div id="responseOverlay" class="response-overlay" role="dialog" aria-modal="true" aria-labelledby="responseTitle">
+    <div class="response-content">
+      <div class="response-header">
+        <h3 id="responseTitle" class="response-title">Respuesta del asistente</h3>
+        <div class="response-actions">
+          <button id="copyBtn" class="btn" title="Copiar">📋 Copiar</button>
+          <button id="speakBtn" class="btn" title="Leer en voz alta">🔈 Leer</button>
+          <button class="btn close-response" title="Cerrar" onclick="closeResponse()">✖</button>
+        </div>
+      </div>
+      <div id="responseText" class="response-text"></div>
+
+      <div class="audio-controls">
+        <div class="volume-control">
+          <span style="font-size:.9rem;color:var(--text-secondary)">🔊 Volumen</span>
+          <input id="volumeSlider" class="volume-slider" type="range" min="0" max="1" step="0.1" value="0.9" />
+        </div>
+        <label class="toggle"><input id="autoSpeak" type="checkbox" /> 🔁 Leer automáticamente</label>
+        <select id="voiceQuality" class="voice-quality-selector" title="Calidad de voz">
+          <option value="auto" selected>🧠 Automática (recomendado)</option>
+          <option value="neural">✨ Neural</option>
+          <option value="premium">💎 Premium</option>
+        </select>
+        <input id="hostInput" class="host-input" style="min-width:260px" placeholder="Host n8n (opcional, ej: http://localhost:5678)" />
+        <button id="saveHostBtn" class="btn" title="Guardar host">💾 Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Config =====
+    const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
+    const WEBHOOK_URL = `http://localhost:5678/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+
+    // ===== Elements =====
+    const voiceOrb = document.getElementById('voiceOrb');
+    const orbIcon = document.getElementById('orbIcon');
+    const mainStatus = document.getElementById('mainStatus');
+    const subStatus = document.getElementById('subStatus');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const responseOverlay = document.getElementById('responseOverlay');
+    const responseText = document.getElementById('responseText');
+    const voiceInterface = document.getElementById('voiceInterface');
+    const textInputArea = document.getElementById('textInputArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const quickActions = document.getElementById('quickActions');
+    const voiceModeBtn = document.getElementById('voiceMode');
+    const textModeBtn = document.getElementById('textMode');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const voiceQuality = document.getElementById('voiceQuality');
+    const wakeWordHint = document.getElementById('wakeWordHint');
+    const copyBtn = document.getElementById('copyBtn');
+    const speakBtn = document.getElementById('speakBtn');
+    const hostInput = document.getElementById('hostInput');
+    const saveHostBtn = document.getElementById('saveHostBtn');
+    const autoSpeak = document.getElementById('autoSpeak');
+    const micPermissionAlert = document.getElementById('micPermissionAlert');
+    const enableMicBtn = document.getElementById('enableMicBtn');
+    const skipMicBtn = document.getElementById('skipMicBtn');
+
+    // ===== State =====
+    let isListening = false, isProcessing = false, currentMode = 'voice';
+    let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
+    let currentUtterance = null;
+    let microphonePermissionGranted = false;
+    let microphoneStream = null;
+
+    // ===== Utils =====
+    function createParticles(){
+      const particlesContainer = document.getElementById('particles');
+      particlesContainer.innerHTML = '';
+      const count = 64; 
+      for (let i=0;i<count;i++){ 
+        const p=document.createElement('div'); 
+        p.className=`particle ${Math.random()>0.72?'red':'blue'}`; 
+        const size=Math.random()*4+2; 
+        p.style.width=p.style.height=size+'px'; 
+        p.style.left=Math.random()*innerWidth+'px'; 
+        p.style.top=Math.random()*innerHeight+'px'; 
+        p.style.animationDelay=(Math.random()*6)+'s'; 
+        p.style.animationDuration=(6+Math.random()*4)+'s'; 
+        particlesContainer.appendChild(p);
+      } 
+    }
+
+    function updateStatus(text,type){
+      const dot = statusIndicator.querySelector('.status-dot');
+      statusIndicator.querySelector('span').textContent = text;
+      const colors = { ready:'#10b981', listening:'#3b82f6', processing:'#f59e0b', error:'#ef4444' };
+      dot.style.background = colors[type] || '#10b981';
+      statusIndicator.style.borderColor = (colors[type]||'#10b981')+'33';
+    }
+
+    function sanitize(str){
+      return (str||'').replace(/[&<>"'`=\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]));
+    }
+
+    function showResponse(query, response){
+      const safeQuery = sanitize(query);
+      const safeResponse = sanitize(response).replace(/\n/g,'<br>');
+      responseText.innerHTML = `
+        <div style="margin-bottom:1rem;padding:1rem;background:rgba(37,99,235,.12);border-radius:10px;border-left:4px solid #2563eb">
+          <strong>Tu consulta:</strong> "${safeQuery}"
+        </div>
+        <div style="line-height:1.7">${safeResponse}</div>`;
+
+      responseOverlay.classList.add('show');
+
+    }
+
+
+
+    function closeResponse(){ responseOverlay.classList.remove('show'); }
+
+
+
+    function handleError(message){
+
+      voiceOrb.classList.remove('listening','processing','wake-word-detected');
+
+      voiceOrb.classList.add('error'); orbIcon.textContent='⚠️';
+
+      mainStatus.textContent='Error'; subStatus.textContent = message || 'Ocurrió un error.';
+
+      updateStatus('Error','error');
+
+      setTimeout(()=>{ voiceOrb.classList.remove('error'); resetToIdle(); }, 2200);
+
+      isListening = false; isProcessing = false; restartWakeWordDetection();
+
+    }
+
+
+
+    function resetToIdle(){
+
+      orbIcon.textContent='🎤';
+
+      mainStatus.textContent='¡Hola! Soy tu asistente médico';
+
+      subStatus.textContent='Toca el botón para empezar a conversar';
+
+      updateStatus('Sistema listo','ready');
+
+      restartWakeWordDetection();
+
+    }
+
+
+
+    // ===== Wake Word ("Hola COS") =====
+
+    async function initWakeWordDetection(){
+
+      if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+
+        updateMicrophonePermissionStatus(false);
+
+        subStatus.textContent = 'Reconocimiento de voz no disponible en este navegador';
+
+        return;
+
+      }
+
+      try{
+
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+
+        stream.getTracks().forEach(t=>t.stop());
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        wakeWordRecognition = new SR();
+
+        wakeWordRecognition.continuous = true; wakeWordRecognition.interimResults = false; wakeWordRecognition.lang = DEFAULT_LANG;
+
+        wakeWordRecognition.onresult = (e)=>{ const last = e.results[e.results.length-1]; if(last.isFinal){ const t = last[0].transcript.toLowerCase().trim(); if(t.includes('hola cos') || (t.includes('cos') && t.includes('hola'))) onWakeWordDetected(); }};
+
+        wakeWordRecognition.onerror = (ev)=>{ if(ev.error==='not-allowed'){ updateMicrophonePermissionStatus(false); showPermissionHelper(); } };
+
+        wakeWordRecognition.onend = ()=>{ if(isWakeWordActive && currentMode==='voice' && !isListening && !isProcessing){ setTimeout(()=>{ try{ wakeWordRecognition.start(); }catch{} }, 1800);} };
+
+        updateMicrophonePermissionStatus(true);
+
+        if (currentMode==='voice') startWakeWordDetection();
+
+      }catch(err){ updateMicrophonePermissionStatus(false); showPermissionHelper(); }
+
+    }
+
+
+
+    function updateMicrophonePermissionStatus(granted){
+
+      if (granted){ wakeWordHint.textContent='O simplemente di "Hola COS"'; wakeWordHint.style.color='var(--cos-blue)'; wakeWordHint.style.cursor='default'; wakeWordHint.onclick=null; }
+
+      else { wakeWordHint.textContent='🎤 Permite el micrófono para usar "Hola COS"'; wakeWordHint.style.color='var(--cos-red)'; wakeWordHint.style.cursor='pointer'; wakeWordHint.onclick=()=>showPermissionHelper(); }
+
+    }
+
+
+
+    function showPermissionHelper(){ alert('Para usar "Hola COS":\n1) Haz clic en el ícono 🔒/🎤 de la barra de direcciones\n2) Permite el micrófono\n3) Recarga la página\n\nTambién puedes:\n• Tocar el circulo\n• Usar modo texto\n• Presionar la barra espaciadora'); }
+
+    function startWakeWordDetection(){ if (wakeWordRecognition && isWakeWordActive && !isListening && !isProcessing){ try{ wakeWordRecognition.start(); wakeWordHint.style.display='block'; }catch{} } }
+
+    function stopWakeWordDetection(){ if (wakeWordRecognition){ try{ wakeWordRecognition.stop(); wakeWordHint.style.display='none'; }catch{} } }
+
+    function onWakeWordDetected(){ voiceOrb.classList.add('wake-word-detected'); stopWakeWordDetection(); playActivationSound(); setTimeout(()=>{ voiceOrb.classList.remove('wake-word-detected'); startListening(); }, 800); }
+
+
+
+    function playActivationSound(){ try{ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return; const ctx=new AC(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.connect(g); g.connect(ctx.destination); osc.frequency.setValueAtTime(820, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime+.12); g.gain.setValueAtTime(0, ctx.currentTime); g.gain.linearRampToValueAtTime(.12, ctx.currentTime+.06); g.gain.exponentialRampToValueAtTime(.01, ctx.currentTime+.24); osc.start(); osc.stop(ctx.currentTime+.24);}catch{} }
+
+
+
+    // ===== Speech Recognition (dictado) =====
+
+    function initSpeechRecognition(){
+
+      if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+
+        handleError('Reconocimiento de voz no disponible en este navegador'); return;
+
+      }
+
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      recognition = new SR(); recognition.continuous = false; recognition.interimResults = true; recognition.lang = DEFAULT_LANG;
+
+      recognition.onstart = ()=>{ isListening=true; voiceOrb.classList.add('listening'); orbIcon.textContent='🔊'; mainStatus.textContent='Te estoy escuchando…'; subStatus.textContent='Puedes hablar ahora'; updateStatus('Escuchando','listening'); };
+
+      recognition.onresult = (event)=>{ let interim='', final=''; for (let i=event.resultIndex; i<event.results.length; i++){ const t=event.results[i][0].transcript; if(event.results[i].isFinal) final += t; else interim += t; } if (interim) subStatus.textContent = `"${interim}…"`; if (final) processVoiceInput(final); };
+
+      recognition.onerror = (ev)=>{ if (ev.error==='no-speech'){ handleError('No se detectó voz. Inténtalo de nuevo.'); } else if (ev.error==='network'){ handleError('Error de conexión. Verifica Internet.'); } else { handleError('Error en el reconocimiento de voz'); } };
+
+      recognition.onend = ()=>{ stopListening(); };
+
+    }
+
+
+
+    function startListening(){ if (recognition && !isListening && !isProcessing){ stopWakeWordDetection(); try{ recognition.start(); }catch{ handleError('No se pudo iniciar la escucha'); restartWakeWordDetection(); } } }
+
+    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para empezar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
+
+    function restartWakeWordDetection(){ if (currentMode==='voice'){ setTimeout(()=> startWakeWordDetection(), 1800); } }
+
+
+
+    // ===== API =====
+
+    async function sendToAPI(message){
+
+      const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
+
+      const res = await fetch(WEBHOOK_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+
+      if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
+
+      const data = await res.json();
+
+      return data.output || data.response || 'Consulta procesada correctamente.';
+
+    }
+
+
+
+    async function processVoiceInput(text){
+
+      isProcessing = true; voiceOrb.classList.remove('listening'); voiceOrb.classList.add('processing'); orbIcon.textContent='⚡';
+
+      mainStatus.textContent='Procesando tu consulta…'; subStatus.textContent=`"${text}"`; updateStatus('Procesando','processing');
+
+      try{ const response = await sendToAPI(text); showResponse(text, response); if (autoSpeak.checked) await speakResponse(response); voiceOrb.classList.remove('processing'); voiceOrb.classList.add('success'); orbIcon.textContent='✓'; setTimeout(()=>{ voiceOrb.classList.remove('success'); resetToIdle(); }, 1500); }
+
+      catch(err){ console.error(err); handleError('No se pudo procesar la consulta'); }
+
+      finally{ isProcessing = false; }
+
+    }
+
+
+
+    // ===== TTS =====
+
+    function pickSpanishVoice(voices){
+
+      const q = voiceQuality.value;
+
+      const esVoices = voices.filter(v=> v.lang && v.lang.toLowerCase().startsWith('es'));
+
+      if (q.startsWith('specific_')){ const name = q.replace('specific_',''); return esVoices.find(v=>v.name===name) || esVoices[0]; }
+
+      if (q==='neural' || q==='auto'){
+
+        return esVoices.find(v=>/google|chrome/i.test(v.name)) || esVoices.find(v=>/neural|enhanced/i.test(v.name)) || esVoices[0];
+
+      }
+
+      if (q==='premium'){ return esVoices.find(v=>/premium|hd/i.test(v.name)) || esVoices[0]; }
+
+      return esVoices[0];
+
+    }
+
+
+
+    function listVoicesOnce(){ if (!('speechSynthesis' in window)) return; const load=()=>{ const voices = speechSynthesis.getVoices(); const es = voices.filter(v=> v.lang && v.lang.toLowerCase().startsWith('es')); // popular options
+
+        const select = document.getElementById('voiceQuality');
+
+        // Append specific voices group once
+
+        if (!document.getElementById('specGroup')){
+
+          const group = document.createElement('optgroup'); group.id='specGroup'; group.label='🎤 Voces específicas';
+
+          es.forEach(v=>{ const opt = document.createElement('option'); opt.value = `specific_${v.name}`; opt.textContent = `${v.localService?'🔹':'☁️'} ${v.name}`; group.appendChild(opt); });
+
+          select.appendChild(group);
+
+        }
+
+      };
+
+      if (speechSynthesis.getVoices().length>0) load();
+
+      speechSynthesis.onvoiceschanged = load;
+
+    }
+
+
+
+    async function speakResponse(text){
+
+      return new Promise(resolve=>{
+
+        if (!('speechSynthesis' in window)){ return resolve(); }
+
+        speechSynthesis.cancel();
+
+        const clean = (text||'').replace(/(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,'');
+
+        currentUtterance = new SpeechSynthesisUtterance(clean);
+
+        currentUtterance.lang = DEFAULT_LANG; currentUtterance.rate=1.0; currentUtterance.pitch=1.06; currentUtterance.volume=parseFloat(volumeSlider.value);
+
+        const voices = speechSynthesis.getVoices(); const v = pickSpanishVoice(voices); if (v) currentUtterance.voice = v;
+
+        if (v && /google|chrome/i.test(v.name)){ currentUtterance.rate=.92; currentUtterance.pitch=1.0; }
+
+        currentUtterance.onend = ()=> resolve(); currentUtterance.onerror = ()=> resolve();
+
+        speechSynthesis.speak(currentUtterance);
+
+      });
+
+    }
+
+
+
+    // ===== Text mode =====
+
+    async function sendTextMessage(){
+
+      const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
+
+      isProcessing = true; sendButton.disabled = true; const prev = sendButton.textContent; sendButton.textContent = '⏳';
+
+      try{ const res = await sendToAPI(msg); showResponse(msg, res); if (autoSpeak.checked) await speakResponse(res); }
+
+      catch(err){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); }
+
+      finally{ isProcessing = false; sendButton.disabled = false; sendButton.textContent = prev; messageInput.value=''; adjustTextareaHeight(); }
+
+    }
+
+
+
+    function sendVoiceCommand(cmd){ if (currentMode==='voice') processVoiceInput(cmd); else { messageInput.value = cmd; sendTextMessage(); } }
+
+    function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
+
+
+
+    // ===== Event Listeners =====
+
+    voiceOrb.addEventListener('click', ()=>{ if (currentMode==='voice' && !isListening && !isProcessing) startListening(); });
+
+    voiceModeBtn.addEventListener('click', ()=>{ currentMode='voice'; voiceModeBtn.classList.add('active'); textModeBtn.classList.remove('active'); voiceInterface.classList.remove('text-mode'); textInputArea.classList.remove('show'); quickActions.classList.remove('hide'); isWakeWordActive = true; startWakeWordDetection(); voiceModeBtn.setAttribute('aria-pressed','true'); textModeBtn.setAttribute('aria-pressed','false'); });
+
+    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); });
+
+
+
+    sendButton.addEventListener('click', sendTextMessage);
+
+    messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); }});
+
+    messageInput.addEventListener('input', adjustTextareaHeight);
+
+
+
+    document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeResponse(); if (e.code==='Space' && currentMode==='voice' && !isListening && !isProcessing){ e.preventDefault(); startListening(); }});
+
+
+
+    // Copy / Speak
+
+    copyBtn.addEventListener('click', async ()=>{ try{ const tmp=document.createElement('div'); tmp.innerHTML=responseText.innerHTML; const text=tmp.textContent||tmp.innerText||''; await navigator.clipboard.writeText(text); copyBtn.textContent='✅ Copiado'; setTimeout(()=>copyBtn.textContent='📋 Copiar',1500);}catch{} });
+
+    speakBtn.addEventListener('click', async ()=>{ const tmp=document.createElement('div'); tmp.innerHTML=responseText.innerHTML; await speakResponse(tmp.textContent||''); });
+
+
+
+    // Host override
+
+    saveHostBtn.addEventListener('click', ()=>{ const host = hostInput.value.trim(); if (!host) return; localStorage.setItem('COS_N8N_HOST', host); alert('Host guardado. Recarga la página para aplicar.'); });
+
+
+
+    // Close overlay on backdrop click
+
+    responseOverlay.addEventListener('click', (e)=>{ if (e.target===responseOverlay) closeResponse(); });
+
+
+
+    // ===== Boot =====
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+
+      createParticles(); initSpeechRecognition(); initWakeWordDetection(); listVoicesOnce();
+
+      // If offline, reflect status
+
+      if (!navigator.onLine){ updateStatus('Sin conexión','error'); }
+
+      window.addEventListener('online', ()=> updateStatus('Sistema listo','ready'));
+
+      window.addEventListener('offline', ()=> updateStatus('Sin conexión','error'));
+
+    });
+
+
+
+    // Prevent scroll with spacebar on body
+
+    window.addEventListener('keydown', e=>{ if (e.code==='Space' && e.target===document.body) e.preventDefault(); });
+
+    window.addEventListener('resize', createParticles);
+
+  </script>
+
+</body>
+
+</html>
