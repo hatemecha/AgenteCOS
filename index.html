@@ -299,13 +299,13 @@
           <span style="font-size:.9rem;color:var(--text-secondary)">🔊 Volumen</span>
           <input id="volumeSlider" class="volume-slider" type="range" min="0" max="1" step="0.1" value="0.9" />
         </div>
-        <label class="toggle"><input id="autoSpeak" type="checkbox" /> 🔁 Leer automáticamente</label>
+        <label class="toggle"><input id="autoSpeak" type="checkbox" checked /> 🔁 Leer automáticamente</label>
         <select id="voiceQuality" class="voice-quality-selector" title="Calidad de voz">
           <option value="auto" selected>🧠 Automática (recomendado)</option>
           <option value="neural">✨ Neural</option>
           <option value="premium">💎 Premium</option>
         </select>
-        <input id="hostInput" class="host-input" style="min-width:260px" placeholder="Host n8n (opcional, ej: http://localhost:5678)" />
+        <input id="hostInput" class="host-input" style="min-width:260px" />
         <button id="saveHostBtn" class="btn" title="Guardar host">💾 Guardar</button>
       </div>
     </div>
