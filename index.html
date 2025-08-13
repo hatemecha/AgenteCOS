@@ -315,6 +315,18 @@ let textInactivityTimer = null;
 let textInactivityInterval = null;
 let inactivitySeconds = 0;
 
+    const swRequestMap = new Map();
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.addEventListener('message', e=>{
+        const data = e.data;
+        if (data && data.id && swRequestMap.has(data.id)){
+          const {resolve,reject} = swRequestMap.get(data.id);
+          swRequestMap.delete(data.id);
+          if (data.error) reject(data.error); else resolve(data.response);
+        }
+      });
+    }
+
     // ===== Utils =====
     function createParticles(){
       const particlesContainer = document.getElementById('particles');
@@ -504,6 +516,19 @@ let inactivitySeconds = 0;
 
       const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
       console.log('Enviando a API:', payload);
+
+      if (navigator.serviceWorker && navigator.serviceWorker.controller){
+        return new Promise((resolve,reject)=>{
+          const id = Date.now()+Math.random();
+          swRequestMap.set(id,{resolve,reject});
+          navigator.serviceWorker.controller.postMessage({type:'API_REQUEST', id, url:WEBHOOK_URL, payload});
+          if (!navigator.onLine){
+            mainStatus.textContent='Sin conexión';
+            subStatus.textContent='Intentando reconectar…';
+            updateStatus('Sin conexión','error');
+          }
+        });
+      }
 
       currentFetchController = new AbortController();
 
@@ -746,15 +771,34 @@ let inactivitySeconds = 0;
 
     document.addEventListener('DOMContentLoaded', ()=>{
 
+      if ('serviceWorker' in navigator){
+        navigator.serviceWorker.register('sw.js').catch(err=>console.error('SW registro falló', err));
+      }
+
       createParticles(); initSpeechRecognition(); initWakeWordDetection(); listVoicesOnce();
 
       // If offline, reflect status
 
-      if (!navigator.onLine){ updateStatus('Sin conexión','error'); }
+      if (!navigator.onLine){
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      }
 
-      window.addEventListener('online', ()=> updateStatus('Sistema listo','ready'));
+      window.addEventListener('online', ()=>{
+        updateStatus('Sistema listo','ready');
+        mainStatus.textContent='Conexión restablecida';
+        subStatus.textContent='Procesando mensajes pendientes…';
+        if (navigator.serviceWorker.controller){
+          navigator.serviceWorker.controller.postMessage({type:'RETRY_QUEUE'});
+        }
+      });
 
-      window.addEventListener('offline', ()=> updateStatus('Sin conexión','error'));
+      window.addEventListener('offline', ()=>{
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      });
 
     });
 
