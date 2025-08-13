@@ -282,6 +282,7 @@
     const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
 
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    const TEXT_INACTIVITY_TIMEOUT_MS = 15000;
 
     // ===== Elements =====
     const voiceOrb = document.getElementById('voiceOrb');
@@ -391,7 +392,7 @@ let textInactivityTimer = null;
     // ===== Wake Word ("Hola COS") =====
 
     async function initWakeWordDetection(){
-
+      console.log('Inicializando detección de palabra clave');
       if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
 
         updateMicrophonePermissionStatus(false);
@@ -457,7 +458,7 @@ let textInactivityTimer = null;
     // ===== Speech Recognition (dictado) =====
 
     function initSpeechRecognition(){
-
+      console.log('Inicializando reconocimiento de voz');
       if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
 
         handleError('Reconocimiento de voz no disponible en este navegador'); return;
@@ -480,7 +481,14 @@ let textInactivityTimer = null;
 
 
 
-    function startListening(){ if (recognition && !isListening && !isProcessing){ stopWakeWordDetection(); try{ recognition.start(); }catch{ handleError('No se pudo iniciar la escucha'); restartWakeWordDetection(); } } }
+    function startListening(){
+      if (recognition && !isListening && !isProcessing){
+        console.log('Comenzando a escuchar');
+        stopWakeWordDetection();
+        try{ recognition.start(); }
+        catch{ handleError('No se pudo iniciar la escucha'); restartWakeWordDetection(); }
+      }
+    }
 
     function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para empezar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
 
@@ -493,6 +501,7 @@ let textInactivityTimer = null;
     async function sendToAPI(message){
 
       const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
+      console.log('Enviando a API:', payload);
 
       currentFetchController = new AbortController();
 
@@ -508,6 +517,7 @@ let textInactivityTimer = null;
       if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
 
       const data = await res.json();
+      console.log('Respuesta de API:', data);
 
       return data.output || data.response || 'Consulta procesada correctamente.';
 
@@ -518,6 +528,7 @@ let textInactivityTimer = null;
     async function processVoiceInput(rawText){
 
       const text = (rawText || "").trim();
+      console.log('Texto de voz procesado:', text);
       if (!text){ handleError("No se detectó voz. Inténtalo de nuevo."); return; }
 
       isProcessing = true; voiceOrb.classList.remove('listening'); voiceOrb.classList.add('processing'); orbIcon.textContent='⚡';
@@ -608,6 +619,7 @@ let textInactivityTimer = null;
     async function sendTextMessage(){
 
     const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
+    console.log('Enviando mensaje de texto:', msg);
 
     clearTimeout(textInactivityTimer);
     isProcessing = true; updateSendButton(true);
@@ -628,6 +640,7 @@ let textInactivityTimer = null;
 
 
     function switchToVoiceMode(){
+      console.log('Cambiando a modo voz');
       currentMode='voice';
       voiceModeBtn.classList.add('active');
       textModeBtn.classList.remove('active');
@@ -645,12 +658,14 @@ let textInactivityTimer = null;
     }
 
     function resetTextInactivityTimer(){
+      console.log('Reiniciando temporizador de inactividad');
       clearTimeout(textInactivityTimer);
       if (currentMode==='text' && !isProcessing){
-
-        textInactivityTimer = setTimeout(switchToVoiceMode, 15000);
-
-
+        textInactivityTimer = setTimeout(()=>{
+          console.log('Inactividad detectada, cambiando a modo voz');
+          switchToVoiceMode();
+        }, TEXT_INACTIVITY_TIMEOUT_MS);
+        console.log('Temporizador configurado por', TEXT_INACTIVITY_TIMEOUT_MS, 'ms');
       }
     }
 
