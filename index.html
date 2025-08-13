@@ -57,6 +57,7 @@
     .mode-btn.active::before{ content:""; position:absolute; inset:0; background:var(--primary-gradient); z-index:-1; border-radius:20px; animation:fadeIn .25s ease; }
     @keyframes fadeIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
 
+
     /* Voice UI */
     .voice-interface{ display:flex; flex-direction:column; align-items:center; gap:2.4rem; transition: .45s cubic-bezier(.4,0,.2,1); }
     .voice-interface.text-mode{ transform: translateY(-90px); }
@@ -304,6 +305,7 @@
     let isListening = false, isProcessing = false, currentMode = 'voice';
     let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
     let currentUtterance = null;
+    let currentFetchController = null;
     let microphonePermissionGranted = false;
     let microphoneStream = null;
 
@@ -489,7 +491,16 @@
 
       const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
 
-      const res = await fetch(WEBHOOK_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      currentFetchController = new AbortController();
+
+      const res = await fetch(WEBHOOK_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+        signal: currentFetchController.signal
+      });
+
+      currentFetchController = null;
 
       if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
 
@@ -560,15 +571,30 @@
 
         if (v && /google|chrome/i.test(v.name)){ currentUtterance.rate=.92; currentUtterance.pitch=1.0; }
 
-        currentUtterance.onend = ()=> resolve(); currentUtterance.onerror = ()=> resolve();
-
+        currentUtterance.onend = ()=> { resolve(); };
+        currentUtterance.onerror = ()=> { resolve(); };
         speechSynthesis.speak(currentUtterance);
 
       });
 
     }
+    function updateSendButton(isCancel){
+      sendButton.textContent = isCancel ? '⏹' : '➤';
+      sendButton.setAttribute('aria-label', isCancel ? 'Finalizar' : 'Enviar');
+    }
 
-
+    function cancelProcessing(){
+      if (currentUtterance){
+        speechSynthesis.cancel();
+        currentUtterance = null;
+      }
+      if (currentFetchController){
+        currentFetchController.abort();
+        currentFetchController = null;
+      }
+      isProcessing = false;
+      updateSendButton(false);
+    }
 
     // ===== Text mode =====
 
@@ -576,13 +602,13 @@
 
       const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
 
-      isProcessing = true; sendButton.disabled = true; const prev = sendButton.textContent; sendButton.textContent = '⏳';
+      isProcessing = true; updateSendButton(true);
 
       try{ const res = await sendToAPI(msg); showResponse(msg, res); await speakResponse(res); }
 
-      catch(err){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); }
+      catch(err){ if (err.name !== 'AbortError'){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); } }
 
-      finally{ isProcessing = false; sendButton.disabled = false; sendButton.textContent = prev; messageInput.value=''; adjustTextareaHeight(); }
+      finally{ isProcessing = false; updateSendButton(false); currentFetchController = null; messageInput.value=''; adjustTextareaHeight(); }
 
     }
 
@@ -604,7 +630,9 @@
 
 
 
-    sendButton.addEventListener('click', sendTextMessage);
+    sendButton.addEventListener('click', ()=>{
+      if (isProcessing) cancelProcessing(); else sendTextMessage();
+    });
 
     messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); }});
 
