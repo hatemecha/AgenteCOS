@@ -159,25 +159,11 @@
     .quick-action:nth-child(1){animation-delay:.95s} .quick-action:nth-child(2){animation-delay:1.05s} .quick-action:nth-child(3){animation-delay:1.15s} .quick-action:nth-child(4){animation-delay:1.25s}
     .quick-action:hover{ background: rgba(37,99,235,.22); border-color: rgba(37,99,235,.44); transform:translateY(-3px); box-shadow: 0 9px 26px rgba(37,99,235,.28); }
 
-    /* Response overlay */
-    .response-overlay{ position: fixed; inset:0; background: rgba(0,0,0,.84); backdrop-filter: blur(20px); display:none; align-items:center; justify-content:center; z-index:100; }
-    .response-overlay.show{ display:flex; }
-    .response-content{ width:min(880px,92vw); max-height:82vh; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:18px; padding:1.35rem; overflow:auto; transform:scale(.98); animation:pop .25s ease forwards; }
-    @keyframes pop{to{transform:scale(1)}}
-    .response-header{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding-bottom:.9rem; margin-bottom:1rem; border-bottom:1px solid var(--glass-border); }
-    .response-title{ font-size:1.05rem; letter-spacing:.2px; }
-    .response-actions{ display:flex; gap:.5rem; }
-    .btn{ border:none; background:var(--glass-bg); color:var(--text-primary); border:1px solid var(--glass-border); padding:.5rem .75rem; border-radius:10px; cursor:pointer; font-size:.92rem; transition:.2s }
-    .btn:hover{ background: rgba(255,255,255,.12) }
-    .close-response{ width:40px; height:40px; display:grid; place-items:center; border-radius:999px; }
-    .response-text{ font-size:1.06rem; line-height:1.62; color:var(--text-primary); white-space:normal; word-wrap:break-word }
-
-    /* Audio / TTS */
-    .audio-controls{ display:flex; align-items:center; gap:1rem; margin-top:1rem; padding:.9rem; background:rgba(255,255,255,.06); border-radius:14px; flex-wrap:wrap; }
-    .volume-control{ display:flex; align-items:center; gap:.55rem; flex:1; min-width:220px; }
-    .volume-slider{ flex:1; height:4px; background:var(--glass-border); border-radius:2px; outline:none; cursor:pointer; }
-    .voice-quality-selector, .host-input{ background:var(--glass-bg); border:1px solid var(--glass-border); color:var(--text-primary); padding:.45rem .55rem; border-radius:8px; font-size:.92rem; }
-    .toggle{ display:inline-flex; align-items:center; gap:.4rem; font-size:.92rem; color:var(--text-secondary) }
+    /* Chat */
+    .chat-log{ position:absolute; bottom:140px; left:50%; transform:translateX(-50%); width:min(680px,92vw); max-height:60vh; overflow-y:auto; display:none; flex-direction:column; gap:.75rem; }
+    .chat-log.show{ display:flex; }
+    .chat-message{ background:var(--glass-bg); border:1px solid var(--glass-border); padding:.75rem 1rem; border-radius:12px; line-height:1.6; }
+    .chat-message.user{ align-self:flex-end; background:rgba(37,99,235,.12); border-color:rgba(37,99,235,.32); }
 
     /* Error / success */
     .voice-orb.error{ background:var(--secondary-gradient); animation:shake .45s ease-in-out; }
@@ -264,6 +250,9 @@
       </div>
     </div>
 
+    <!-- Chat log -->
+    <div id="chatLog" class="chat-log" aria-live="polite"></div>
+
     <!-- Text input -->
     <div id="textInputArea" class="text-input-area" role="form">
       <div class="input-container">
@@ -281,40 +270,11 @@
     </div>
   </div>
 
-  <!-- Response overlay -->
-  <div id="responseOverlay" class="response-overlay" role="dialog" aria-modal="true" aria-labelledby="responseTitle">
-    <div class="response-content">
-      <div class="response-header">
-        <h3 id="responseTitle" class="response-title">Respuesta del asistente</h3>
-        <div class="response-actions">
-          <button id="copyBtn" class="btn" title="Copiar">📋 Copiar</button>
-          <button id="speakBtn" class="btn" title="Leer en voz alta">🔈 Leer</button>
-          <button class="btn close-response" title="Cerrar" onclick="closeResponse()">✖</button>
-        </div>
-      </div>
-      <div id="responseText" class="response-text"></div>
-
-      <div class="audio-controls">
-        <div class="volume-control">
-          <span style="font-size:.9rem;color:var(--text-secondary)">🔊 Volumen</span>
-          <input id="volumeSlider" class="volume-slider" type="range" min="0" max="1" step="0.1" value="0.9" />
-        </div>
-        <label class="toggle"><input id="autoSpeak" type="checkbox" checked /> 🔁 Leer automáticamente</label>
-        <select id="voiceQuality" class="voice-quality-selector" title="Calidad de voz">
-          <option value="auto" selected>🧠 Automática (recomendado)</option>
-          <option value="neural">✨ Neural</option>
-          <option value="premium">💎 Premium</option>
-        </select>
-        <input id="hostInput" class="host-input" style="min-width:260px" />
-        <button id="saveHostBtn" class="btn" title="Guardar host">💾 Guardar</button>
-      </div>
-    </div>
-  </div>
-
     <script src="sanitize.js"></script>
   <script>
     // ===== Config =====
     const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
+    const DEFAULT_VOLUME = 0.9;
     const DEFAULT_HOST = 'http://localhost:5678';
     const storedHost = localStorage.getItem('COS_N8N_HOST');
     const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
@@ -327,29 +287,18 @@
     const mainStatus = document.getElementById('mainStatus');
     const subStatus = document.getElementById('subStatus');
     const statusIndicator = document.getElementById('statusIndicator');
-    const responseOverlay = document.getElementById('responseOverlay');
-    const responseText = document.getElementById('responseText');
     const voiceInterface = document.getElementById('voiceInterface');
     const textInputArea = document.getElementById('textInputArea');
+    const chatLog = document.getElementById('chatLog');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
     const quickActions = document.getElementById('quickActions');
     const voiceModeBtn = document.getElementById('voiceMode');
     const textModeBtn = document.getElementById('textMode');
-    const volumeSlider = document.getElementById('volumeSlider');
-    const voiceQuality = document.getElementById('voiceQuality');
     const wakeWordHint = document.getElementById('wakeWordHint');
-    const copyBtn = document.getElementById('copyBtn');
-    const speakBtn = document.getElementById('speakBtn');
-    const hostInput = document.getElementById('hostInput');
-    const saveHostBtn = document.getElementById('saveHostBtn');
-    if (storedHost) hostInput.value = storedHost;
-    const autoSpeak = document.getElementById('autoSpeak');
     const micPermissionAlert = document.getElementById('micPermissionAlert');
     const enableMicBtn = document.getElementById('enableMicBtn');
     const skipMicBtn = document.getElementById('skipMicBtn');
-
-    if (storedHost) hostInput.value = storedHost;
 
     // ===== State =====
     let isListening = false, isProcessing = false, currentMode = 'voice';
@@ -386,23 +335,19 @@
 
 
     function showResponse(query, response){
+      if (currentMode==='voice') textModeBtn.click();
       const safeQuery = sanitize(query);
       const safeResponse = sanitize(response).replace(/\n/g,'<br>');
-      responseText.innerHTML = `
-        <div style="margin-bottom:1rem;padding:1rem;background:rgba(37,99,235,.12);border-radius:10px;border-left:4px solid #2563eb">
-          <strong>Tu consulta:</strong> "${safeQuery}"
-        </div>
-        <div style="line-height:1.7">${safeResponse}</div>`;
-
-      responseOverlay.classList.add('show');
-
+      const userDiv = document.createElement('div');
+      userDiv.className = 'chat-message user';
+      userDiv.textContent = safeQuery;
+      const botDiv = document.createElement('div');
+      botDiv.className = 'chat-message assistant';
+      botDiv.innerHTML = safeResponse;
+      chatLog.appendChild(userDiv);
+      chatLog.appendChild(botDiv);
+      chatLog.scrollTop = chatLog.scrollHeight;
     }
-
-
-
-    function closeResponse(){ responseOverlay.classList.remove('show'); }
-
-
 
     function handleError(message){
 
@@ -562,7 +507,7 @@
 
       mainStatus.textContent='Procesando tu consulta…'; subStatus.textContent=`"${text}"`; updateStatus('Procesando','processing');
 
-      try{ const response = await sendToAPI(text); showResponse(text, response); if (autoSpeak.checked) await speakResponse(response); voiceOrb.classList.remove('processing'); voiceOrb.classList.add('success'); orbIcon.textContent='✓'; setTimeout(()=>{ voiceOrb.classList.remove('success'); resetToIdle(); }, 1500); }
+      try{ const response = await sendToAPI(text); showResponse(text, response); await speakResponse(response); voiceOrb.classList.remove('processing'); voiceOrb.classList.add('success'); orbIcon.textContent='✓'; setTimeout(()=>{ voiceOrb.classList.remove('success'); resetToIdle(); }, 1500); }
 
       catch(err){ console.error(err); handleError('No se pudo procesar la consulta'); }
 
@@ -575,49 +520,19 @@
     // ===== TTS =====
 
     function pickSpanishVoice(voices){
-
-      const q = voiceQuality.value;
-
       const esVoices = voices.filter(v=> v.lang && v.lang.toLowerCase().startsWith('es'));
-
-      if (q.startsWith('specific_')){ const name = q.replace('specific_',''); return esVoices.find(v=>v.name===name) || esVoices[0]; }
-
-      if (q==='neural' || q==='auto'){
-
-        return esVoices.find(v=>/google|chrome/i.test(v.name)) || esVoices.find(v=>/neural|enhanced/i.test(v.name)) || esVoices[0];
-
-      }
-
-      if (q==='premium'){ return esVoices.find(v=>/premium|hd/i.test(v.name)) || esVoices[0]; }
-
-      return esVoices[0];
-
+      return esVoices.find(v=>/google|chrome/i.test(v.name)) ||
+             esVoices.find(v=>/neural|enhanced/i.test(v.name)) ||
+             esVoices[0];
     }
 
 
 
-    function listVoicesOnce(){ if (!('speechSynthesis' in window)) return; const load=()=>{ const voices = speechSynthesis.getVoices(); const es = voices.filter(v=> v.lang && v.lang.toLowerCase().startsWith('es')); // popular options
-
-        const select = document.getElementById('voiceQuality');
-
-        // Append specific voices group once
-
-        if (!document.getElementById('specGroup')){
-
-          const group = document.createElement('optgroup'); group.id='specGroup'; group.label='🎤 Voces específicas';
-
-          es.forEach(v=>{ const opt = document.createElement('option'); opt.value = `specific_${v.name}`; opt.textContent = `${v.localService?'🔹':'☁️'} ${v.name}`; group.appendChild(opt); });
-
-          select.appendChild(group);
-
-        }
-
-      };
-
+    function listVoicesOnce(){
+      if (!('speechSynthesis' in window)) return;
+      const load = ()=>{ speechSynthesis.getVoices(); };
       if (speechSynthesis.getVoices().length>0) load();
-
       speechSynthesis.onvoiceschanged = load;
-
     }
 
 
@@ -634,7 +549,7 @@
 
         currentUtterance = new SpeechSynthesisUtterance(clean);
 
-        currentUtterance.lang = DEFAULT_LANG; currentUtterance.rate=1.0; currentUtterance.pitch=1.06; currentUtterance.volume=parseFloat(volumeSlider.value);
+        currentUtterance.lang = DEFAULT_LANG; currentUtterance.rate=1.0; currentUtterance.pitch=1.06; currentUtterance.volume=DEFAULT_VOLUME;
 
         const voices = speechSynthesis.getVoices(); const v = pickSpanishVoice(voices); if (v) currentUtterance.voice = v;
 
@@ -658,7 +573,7 @@
 
       isProcessing = true; sendButton.disabled = true; const prev = sendButton.textContent; sendButton.textContent = '⏳';
 
-      try{ const res = await sendToAPI(msg); showResponse(msg, res); if (autoSpeak.checked) await speakResponse(res); }
+      try{ const res = await sendToAPI(msg); showResponse(msg, res); await speakResponse(res); }
 
       catch(err){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); }
 
@@ -678,9 +593,9 @@
 
     voiceOrb.addEventListener('click', ()=>{ if (currentMode==='voice' && !isListening && !isProcessing) startListening(); });
 
-    voiceModeBtn.addEventListener('click', ()=>{ currentMode='voice'; voiceModeBtn.classList.add('active'); textModeBtn.classList.remove('active'); voiceInterface.classList.remove('text-mode'); textInputArea.classList.remove('show'); quickActions.classList.remove('hide'); isWakeWordActive = true; startWakeWordDetection(); voiceModeBtn.setAttribute('aria-pressed','true'); textModeBtn.setAttribute('aria-pressed','false'); });
+    voiceModeBtn.addEventListener('click', ()=>{ currentMode='voice'; voiceModeBtn.classList.add('active'); textModeBtn.classList.remove('active'); voiceInterface.classList.remove('text-mode'); textInputArea.classList.remove('show'); quickActions.classList.remove('hide'); chatLog.classList.remove('show'); isWakeWordActive = true; startWakeWordDetection(); voiceModeBtn.setAttribute('aria-pressed','true'); textModeBtn.setAttribute('aria-pressed','false'); });
 
-    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); });
+    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); chatLog.classList.add('show'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); });
 
 
 
@@ -692,27 +607,12 @@
 
 
 
-    document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeResponse(); if (e.code==='Space' && currentMode==='voice' && !isListening && !isProcessing){ e.preventDefault(); startListening(); }});
-
-
-
-    // Copy / Speak
-
-    copyBtn.addEventListener('click', async ()=>{ try{ const tmp=document.createElement('div'); tmp.innerHTML=responseText.innerHTML; const text=tmp.textContent||tmp.innerText||''; await navigator.clipboard.writeText(text); copyBtn.textContent='✅ Copiado'; setTimeout(()=>copyBtn.textContent='📋 Copiar',1500);}catch{} });
-
-    speakBtn.addEventListener('click', async ()=>{ const tmp=document.createElement('div'); tmp.innerHTML=responseText.innerHTML; await speakResponse(tmp.textContent||''); });
-
-
-
-    // Host override
-
-    saveHostBtn.addEventListener('click', ()=>{ const host = hostInput.value.trim(); if (!host) return; localStorage.setItem('COS_N8N_HOST', host); alert('Host guardado. Recarga la página para aplicar.'); });
-
-
-
-    // Close overlay on backdrop click
-
-    responseOverlay.addEventListener('click', (e)=>{ if (e.target===responseOverlay) closeResponse(); });
+    document.addEventListener('keydown', e=>{
+      if (e.code==='Space' && currentMode==='voice' && !isListening && !isProcessing){
+        e.preventDefault();
+        startListening();
+      }
+    });
 
 
 
