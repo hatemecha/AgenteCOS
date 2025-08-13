@@ -501,7 +501,10 @@
 
 
 
-    async function processVoiceInput(text){
+    async function processVoiceInput(rawText){
+
+      const text = (rawText || "").trim();
+      if (!text){ handleError("No se detectó voz. Inténtalo de nuevo."); return; }
 
       isProcessing = true; voiceOrb.classList.remove('listening'); voiceOrb.classList.add('processing'); orbIcon.textContent='⚡';
 
