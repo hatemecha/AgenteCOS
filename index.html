@@ -304,12 +304,13 @@
     const skipMicBtn = document.getElementById('skipMicBtn');
 
     // ===== State =====
-    let isListening = false, isProcessing = false, currentMode = 'voice';
-    let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
-    let currentUtterance = null;
-    let currentFetchController = null;
-    let microphonePermissionGranted = false;
-    let microphoneStream = null;
+let isListening = false, isProcessing = false, currentMode = 'voice';
+let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
+let currentUtterance = null;
+let currentFetchController = null;
+let microphonePermissionGranted = false;
+let microphoneStream = null;
+let textInactivityTimer = null;
 
     // ===== Utils =====
     function createParticles(){
@@ -599,21 +600,23 @@
       }
       isProcessing = false;
       updateSendButton(false);
+      resetTextInactivityTimer();
     }
 
     // ===== Text mode =====
 
     async function sendTextMessage(){
 
-      const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
+    const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
 
-      isProcessing = true; updateSendButton(true);
+    clearTimeout(textInactivityTimer);
+    isProcessing = true; updateSendButton(true);
 
       try{ const res = await sendToAPI(msg); showResponse(msg, res); await speakResponse(res); }
 
       catch(err){ if (err.name !== 'AbortError'){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); } }
 
-      finally{ isProcessing = false; updateSendButton(false); currentFetchController = null; messageInput.value=''; adjustTextareaHeight(); }
+    finally{ isProcessing = false; updateSendButton(false); currentFetchController = null; messageInput.value=''; adjustTextareaHeight(); resetTextInactivityTimer(); }
 
     }
 
@@ -623,15 +626,38 @@
 
     function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
 
+    function switchToVoiceMode(){
+      currentMode='voice';
+      voiceModeBtn.classList.add('active');
+      textModeBtn.classList.remove('active');
+      voiceInterface.classList.remove('text-mode');
+      textInputArea.classList.remove('show');
+      quickActions.classList.remove('hide');
+      chatLog.classList.remove('show');
+      isWakeWordActive = true;
+      startWakeWordDetection();
+      voiceModeBtn.setAttribute('aria-pressed','true');
+      textModeBtn.setAttribute('aria-pressed','false');
+      messageInput.value='';
+      adjustTextareaHeight();
+      clearTimeout(textInactivityTimer);
+    }
+
+    function resetTextInactivityTimer(){
+      clearTimeout(textInactivityTimer);
+      if (currentMode==='text' && !isProcessing){
+        textInactivityTimer = setTimeout(switchToVoiceMode, 30000);
+      }
+    }
 
 
     // ===== Event Listeners =====
 
     voiceOrb.addEventListener('click', ()=>{ if (currentMode==='voice' && !isListening && !isProcessing) startListening(); });
 
-    voiceModeBtn.addEventListener('click', ()=>{ currentMode='voice'; voiceModeBtn.classList.add('active'); textModeBtn.classList.remove('active'); voiceInterface.classList.remove('text-mode'); textInputArea.classList.remove('show'); quickActions.classList.remove('hide'); chatLog.classList.remove('show'); isWakeWordActive = true; startWakeWordDetection(); voiceModeBtn.setAttribute('aria-pressed','true'); textModeBtn.setAttribute('aria-pressed','false'); });
+    voiceModeBtn.addEventListener('click', switchToVoiceMode);
 
-    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); chatLog.classList.add('show'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); });
+    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); chatLog.classList.add('show'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); resetTextInactivityTimer(); });
 
 
 
@@ -645,9 +671,9 @@
       stopSpeechBtn.disabled = true;
     });
 
-    messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); }});
+    messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); } else resetTextInactivityTimer(); });
 
-    messageInput.addEventListener('input', adjustTextareaHeight);
+    messageInput.addEventListener('input', ()=>{ adjustTextareaHeight(); resetTextInactivityTimer(); });
 
 
 
