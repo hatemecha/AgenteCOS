@@ -231,6 +231,7 @@
         <div id="subStatus" class="sub-status">Toca el botón para empezar a conversar</div>
         <div id="wakeWordHint" class="wake-word-hint">O simplemente di "Hola COS"</div>
       </div>
+      <button id="stopSpeechBtn" class="stop-speech-btn" aria-label="Detener locución" disabled>🔇 Detener</button>
     </div>
 
     <!-- Microphone Permission Alert -->
@@ -293,6 +294,7 @@
     const chatLog = document.getElementById('chatLog');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
+    const stopSpeechBtn = document.getElementById('stopSpeechBtn');
     const quickActions = document.getElementById('quickActions');
     const voiceModeBtn = document.getElementById('voiceMode');
     const textModeBtn = document.getElementById('textMode');
@@ -558,6 +560,7 @@
         if (!('speechSynthesis' in window)){ return resolve(); }
 
         speechSynthesis.cancel();
+        stopSpeechBtn.disabled = true;
 
         const clean = (text||'')
           .replace(/(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,'')
@@ -571,8 +574,10 @@
 
         if (v && /google|chrome/i.test(v.name)){ currentUtterance.rate=.92; currentUtterance.pitch=1.0; }
 
+
         currentUtterance.onend = ()=> { resolve(); };
         currentUtterance.onerror = ()=> { resolve(); };
+
         speechSynthesis.speak(currentUtterance);
 
       });
@@ -632,6 +637,12 @@
 
     sendButton.addEventListener('click', ()=>{
       if (isProcessing) cancelProcessing(); else sendTextMessage();
+    });
+
+    stopSpeechBtn.addEventListener('click', ()=>{
+      speechSynthesis.cancel();
+      currentUtterance = null;
+      stopSpeechBtn.disabled = true;
     });
 
     messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); }});
