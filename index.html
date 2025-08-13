@@ -282,7 +282,7 @@
     const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
 
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-    const TEXT_INACTIVITY_TIMEOUT_MS = 15000;
+    const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
 
     // ===== Elements =====
     const voiceOrb = document.getElementById('voiceOrb');
@@ -312,6 +312,8 @@ let currentFetchController = null;
 let microphonePermissionGranted = false;
 let microphoneStream = null;
 let textInactivityTimer = null;
+let textInactivityInterval = null;
+let inactivitySeconds = 0;
 
     // ===== Utils =====
     function createParticles(){
@@ -622,6 +624,8 @@ let textInactivityTimer = null;
     console.log('Enviando mensaje de texto:', msg);
 
     clearTimeout(textInactivityTimer);
+    clearInterval(textInactivityInterval);
+    inactivitySeconds = 0;
     isProcessing = true; updateSendButton(true);
 
       try{ const res = await sendToAPI(msg); showResponse(msg, res); await speakResponse(res); }
@@ -655,17 +659,26 @@ let textInactivityTimer = null;
       messageInput.value='';
       adjustTextareaHeight();
       clearTimeout(textInactivityTimer);
+      clearInterval(textInactivityInterval);
+      inactivitySeconds = 0;
     }
 
     function resetTextInactivityTimer(){
       console.log('Reiniciando temporizador de inactividad');
       clearTimeout(textInactivityTimer);
+      clearInterval(textInactivityInterval);
+      inactivitySeconds = 0;
       if (currentMode==='text' && !isProcessing){
-        textInactivityTimer = setTimeout(()=>{
-          console.log('Inactividad detectada, cambiando a modo voz');
-          switchToVoiceMode();
-        }, TEXT_INACTIVITY_TIMEOUT_MS);
-        console.log('Temporizador configurado por', TEXT_INACTIVITY_TIMEOUT_MS, 'ms');
+        textInactivityInterval = setInterval(()=>{
+          inactivitySeconds++;
+          console.log(`Inactividad: ${inactivitySeconds} segundos`);
+          if (inactivitySeconds >= TEXT_INACTIVITY_TIMEOUT_MS/1000){
+            console.log('10 segundos de inactividad. Cambiando a modo voz y limpiando chat.');
+            clearInterval(textInactivityInterval);
+            switchToVoiceMode();
+            chatLog.innerHTML = '';
+          }
+        }, 1000);
       }
     }
 
