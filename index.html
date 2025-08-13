@@ -343,7 +343,7 @@ let inactivitySeconds = 0;
 
 
     function showResponse(query, response){
-      if (currentMode==='voice') textModeBtn.click();
+      if (currentMode==='voice') switchToTextMode();
       const safeQuery = sanitize(query);
       const safeResponse = sanitize(response).replace(/\n/g,'<br>');
       const userDiv = document.createElement('div');
@@ -643,6 +643,24 @@ let inactivitySeconds = 0;
     function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
 
 
+    function switchToTextMode(){
+      console.log('Cambiando a modo texto');
+      currentMode='text';
+      textModeBtn.classList.add('active');
+      voiceModeBtn.classList.remove('active');
+      voiceInterface.classList.add('text-mode');
+      textInputArea.classList.add('show');
+      quickActions.classList.add('hide');
+      chatLog.classList.add('show');
+      isWakeWordActive = false;
+      stopWakeWordDetection();
+      messageInput.focus();
+      textModeBtn.setAttribute('aria-pressed','true');
+      voiceModeBtn.setAttribute('aria-pressed','false');
+      resetTextInactivityTimer();
+    }
+
+
     function switchToVoiceMode(){
       console.log('Cambiando a modo voz');
       currentMode='voice';
@@ -691,7 +709,7 @@ let inactivitySeconds = 0;
     voiceModeBtn.addEventListener('click', switchToVoiceMode);
 
 
-    textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); chatLog.classList.add('show'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); resetTextInactivityTimer(); });
+    textModeBtn.addEventListener('click', switchToTextMode);
 
 
 
