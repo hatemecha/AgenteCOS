@@ -629,7 +629,7 @@ let textInactivityTimer = null;
     function resetTextInactivityTimer(){
       clearTimeout(textInactivityTimer);
       if (currentMode==='text' && !isProcessing){
-        textInactivityTimer = setTimeout(()=> voiceModeBtn.click(), 30000);
+        textInactivityTimer = setTimeout(()=> voiceModeBtn.click(), 15000);
       }
     }
 
