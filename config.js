@@ -10,4 +10,4 @@ if (!WEBHOOK_URL && typeof console !== 'undefined') {
 export const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 export const DEFAULT_LANG = 'es-AR';
 export const DEFAULT_VOLUME = 0.9;
-export const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
+export const TEXT_INACTIVITY_TIMEOUT_MS = 20000;

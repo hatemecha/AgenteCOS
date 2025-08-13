@@ -285,7 +285,7 @@
 
     let sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
-    const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
+    const TEXT_INACTIVITY_TIMEOUT_MS = 20000;
 
     // ===== Elements =====
     const voiceOrb = document.getElementById('voiceOrb');
@@ -563,6 +563,7 @@ let inactivitySeconds = 0;
 
       const text = (rawText || "").trim();
       console.log('Texto de voz procesado:', text);
+      if (/\bhola\b/i.test(text)) resetTextInactivityTimer();
       if (!text){ handleError("No se detectó voz. Inténtalo de nuevo."); return; }
 
       isProcessing = true; voiceOrb.classList.remove('listening'); voiceOrb.classList.add('processing'); orbIcon.textContent='⚡';
@@ -655,6 +656,8 @@ let inactivitySeconds = 0;
     const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
     console.log('Enviando mensaje de texto:', msg);
 
+    if (/\bhola\b/i.test(msg)) resetTextInactivityTimer();
+
     clearTimeout(textInactivityTimer);
     clearInterval(textInactivityInterval);
     inactivitySeconds = 0;
@@ -663,7 +666,7 @@ let inactivitySeconds = 0;
       try{
         const res = await sendToAPI(msg);
         showResponse(msg, res);
-        speakResponse(res).catch(err => console.error(err));
+        await speakResponse(res).catch(err => console.error(err));
       }
 
       catch(err){ if (err.name !== 'AbortError'){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); } }
