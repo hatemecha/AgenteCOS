@@ -283,7 +283,7 @@
     const DEFAULT_VOLUME = 0.9;
 
 
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    let sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
     const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
 
@@ -308,7 +308,6 @@
     const skipMicBtn = document.getElementById('skipMicBtn');
 
     // ===== State =====
-let sessionId;
 let isListening = false, isProcessing = false, currentMode = 'voice';
 let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
 let currentUtterance = null;
@@ -675,7 +674,15 @@ let inactivitySeconds = 0;
 
 
 
-    function sendVoiceCommand(cmd){ if (currentMode==='voice') processVoiceInput(cmd); else { messageInput.value = cmd; sendTextMessage(); } }
+    function sendVoiceCommand(cmd){
+      if (currentMode === 'voice') {
+        processVoiceInput(cmd);
+      } else {
+        messageInput.value = cmd;
+        sendTextMessage();
+      }
+    }
+    window.sendVoiceCommand = sendVoiceCommand;
 
     function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
 
