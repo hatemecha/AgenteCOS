@@ -272,7 +272,547 @@
     </div>
   </div>
 
-    <script src="dist/bundle.js"></script>
+
+    <script src="sanitize.js"></script>
+  <script>
+    // ===== Config =====
+    const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
+    const DEFAULT_VOLUME = 0.9;
+    const DEFAULT_HOST = 'http://localhost:5678';
+    const storedHost = localStorage.getItem('COS_N8N_HOST');
+    const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
+
+    // ===== Elements =====
+    const voiceOrb = document.getElementById('voiceOrb');
+    const orbIcon = document.getElementById('orbIcon');
+    const mainStatus = document.getElementById('mainStatus');
+    const subStatus = document.getElementById('subStatus');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const voiceInterface = document.getElementById('voiceInterface');
+    const textInputArea = document.getElementById('textInputArea');
+    const chatLog = document.getElementById('chatLog');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const stopSpeechBtn = document.getElementById('stopSpeechBtn');
+    const quickActions = document.getElementById('quickActions');
+    const voiceModeBtn = document.getElementById('voiceMode');
+    const textModeBtn = document.getElementById('textMode');
+    const wakeWordHint = document.getElementById('wakeWordHint');
+    const micPermissionAlert = document.getElementById('micPermissionAlert');
+    const enableMicBtn = document.getElementById('enableMicBtn');
+    const skipMicBtn = document.getElementById('skipMicBtn');
+
+    // ===== State =====
+let isListening = false, isProcessing = false, currentMode = 'voice';
+let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
+let currentUtterance = null;
+let currentFetchController = null;
+let microphonePermissionGranted = false;
+let microphoneStream = null;
+let textInactivityTimer = null;
+let textInactivityInterval = null;
+let inactivitySeconds = 0;
+
+    const swRequestMap = new Map();
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.addEventListener('message', e=>{
+        const data = e.data;
+        if (data && data.id && swRequestMap.has(data.id)){
+          const {resolve,reject} = swRequestMap.get(data.id);
+          swRequestMap.delete(data.id);
+          if (data.error) reject(data.error); else resolve(data.response);
+        }
+      });
+    }
+
+    // ===== Utils =====
+    function createParticles(){
+      const particlesContainer = document.getElementById('particles');
+      particlesContainer.innerHTML = '';
+      const count = 64; 
+      for (let i=0;i<count;i++){ 
+        const p=document.createElement('div'); 
+        p.className=`particle ${Math.random()>0.72?'red':'blue'}`; 
+        const size=Math.random()*4+2; 
+        p.style.width=p.style.height=size+'px'; 
+        p.style.left=Math.random()*innerWidth+'px'; 
+        p.style.top=Math.random()*innerHeight+'px'; 
+        p.style.animationDelay=(Math.random()*6)+'s'; 
+        p.style.animationDuration=(6+Math.random()*4)+'s'; 
+        particlesContainer.appendChild(p);
+      } 
+    }
+
+    function updateStatus(text,type){
+      const dot = statusIndicator.querySelector('.status-dot');
+      statusIndicator.querySelector('span').textContent = text;
+      const colors = { ready:'#10b981', listening:'#3b82f6', processing:'#f59e0b', error:'#ef4444' };
+      dot.style.background = colors[type] || '#10b981';
+      statusIndicator.style.borderColor = (colors[type]||'#10b981')+'33';
+    }
+
+
+    function showResponse(query, response){
+      if (currentMode==='voice') switchToTextMode();
+      const safeQuery = sanitize(query);
+      const safeResponse = sanitize(response).replace(/\n/g,'<br>');
+      const userDiv = document.createElement('div');
+      userDiv.className = 'chat-message user';
+      userDiv.textContent = safeQuery;
+      const botDiv = document.createElement('div');
+      botDiv.className = 'chat-message assistant';
+      botDiv.innerHTML = safeResponse;
+      chatLog.appendChild(userDiv);
+      chatLog.appendChild(botDiv);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function handleError(message){
+
+      voiceOrb.classList.remove('listening','processing','wake-word-detected');
+
+      voiceOrb.classList.add('error'); orbIcon.textContent='⚠️';
+
+      mainStatus.textContent='Error'; subStatus.textContent = message || 'Ocurrió un error.';
+
+      updateStatus('Error','error');
+
+      setTimeout(()=>{ voiceOrb.classList.remove('error'); resetToIdle(); }, 2200);
+
+      isListening = false; isProcessing = false; restartWakeWordDetection();
+
+    }
+
+
+
+    function resetToIdle(){
+
+      orbIcon.textContent='🎤';
+
+      mainStatus.textContent='¡Hola! Soy tu asistente médico';
+
+      subStatus.textContent='Toca el botón para empezar a conversar';
+
+      updateStatus('Sistema listo','ready');
+
+      restartWakeWordDetection();
+
+    }
+
+
+
+    // ===== Wake Word ("Hola COS") =====
+
+    async function initWakeWordDetection(){
+      console.log('Inicializando detección de palabra clave');
+      if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+
+        updateMicrophonePermissionStatus(false);
+
+        subStatus.textContent = 'Reconocimiento de voz no disponible en este navegador';
+
+        return;
+
+      }
+
+      try{
+
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+
+        stream.getTracks().forEach(t=>t.stop());
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        wakeWordRecognition = new SR();
+
+        wakeWordRecognition.continuous = true; wakeWordRecognition.interimResults = false; wakeWordRecognition.lang = DEFAULT_LANG;
+
+        wakeWordRecognition.onresult = (e)=>{ const last = e.results[e.results.length-1]; if(last.isFinal){ const t = last[0].transcript.toLowerCase().trim(); if(t.includes('hola cos') || (t.includes('cos') && t.includes('hola'))) onWakeWordDetected(); }};
+
+        wakeWordRecognition.onerror = (ev)=>{ if(ev.error==='not-allowed'){ updateMicrophonePermissionStatus(false); showPermissionHelper(); } };
+
+        wakeWordRecognition.onend = ()=>{ if(isWakeWordActive && currentMode==='voice' && !isListening && !isProcessing){ setTimeout(()=>{ try{ wakeWordRecognition.start(); }catch{} }, 1800);} };
+
+        updateMicrophonePermissionStatus(true);
+
+        if (currentMode==='voice') startWakeWordDetection();
+
+      }catch(err){ updateMicrophonePermissionStatus(false); showPermissionHelper(); }
+
+    }
+
+
+
+    function updateMicrophonePermissionStatus(granted){
+
+      if (granted){ wakeWordHint.textContent='O simplemente di "Hola COS"'; wakeWordHint.style.color='var(--cos-blue)'; wakeWordHint.style.cursor='default'; wakeWordHint.onclick=null; }
+
+      else { wakeWordHint.textContent='🎤 Permite el micrófono para usar "Hola COS"'; wakeWordHint.style.color='var(--cos-red)'; wakeWordHint.style.cursor='pointer'; wakeWordHint.onclick=()=>showPermissionHelper(); }
+
+    }
+
+
+
+    function showPermissionHelper(){ alert('Para usar "Hola COS":\n1) Haz clic en el ícono 🔒/🎤 de la barra de direcciones\n2) Permite el micrófono\n3) Recarga la página\n\nTambién puedes:\n• Tocar el círculo\n• Usar modo texto\n• Presionar la barra espaciadora'); }
+
+    function startWakeWordDetection(){ if (wakeWordRecognition && isWakeWordActive && !isListening && !isProcessing){ try{ wakeWordRecognition.start(); wakeWordHint.style.display='block'; }catch{} } }
+
+    function stopWakeWordDetection(){ if (wakeWordRecognition){ try{ wakeWordRecognition.stop(); wakeWordHint.style.display='none'; }catch{} } }
+
+    function onWakeWordDetected(){ voiceOrb.classList.add('wake-word-detected'); stopWakeWordDetection(); playActivationSound(); setTimeout(()=>{ voiceOrb.classList.remove('wake-word-detected'); startListening(); }, 800); }
+
+
+
+    function playActivationSound(){ try{ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return; const ctx=new AC(); const osc=ctx.createOscillator(); const g=ctx.createGain(); osc.connect(g); g.connect(ctx.destination); osc.frequency.setValueAtTime(820, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime+.12); g.gain.setValueAtTime(0, ctx.currentTime); g.gain.linearRampToValueAtTime(.12, ctx.currentTime+.06); g.gain.exponentialRampToValueAtTime(.01, ctx.currentTime+.24); osc.start(); osc.stop(ctx.currentTime+.24);}catch{} }
+
+
+
+    // ===== Speech Recognition (dictado) =====
+
+    function initSpeechRecognition(){
+      console.log('Inicializando reconocimiento de voz');
+      if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+
+        handleError('Reconocimiento de voz no disponible en este navegador'); return;
+
+      }
+
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      recognition = new SR(); recognition.continuous = false; recognition.interimResults = true; recognition.lang = DEFAULT_LANG;
+
+      recognition.onstart = ()=>{ isListening=true; voiceOrb.classList.add('listening'); orbIcon.textContent='🔊'; mainStatus.textContent='Te estoy escuchando…'; subStatus.textContent='Puedes hablar ahora'; updateStatus('Escuchando','listening'); };
+
+      recognition.onresult = (event)=>{ let interim='', final=''; for (let i=event.resultIndex; i<event.results.length; i++){ const t=event.results[i][0].transcript; if(event.results[i].isFinal) final += t; else interim += t; } if (interim) subStatus.textContent = `"${interim}…"`; if (final) processVoiceInput(final); };
+
+      recognition.onerror = (ev)=>{ if (ev.error==='no-speech'){ handleError('No se detectó voz. Inténtalo de nuevo.'); } else if (ev.error==='network'){ handleError('Error de conexión. Verifica Internet.'); } else { handleError('Error en el reconocimiento de voz'); } };
+
+      recognition.onend = ()=>{ stopListening(); };
+
+    }
+
+
+
+    function startListening(){
+      if (recognition && !isListening && !isProcessing){
+        console.log('Comenzando a escuchar');
+        stopWakeWordDetection();
+        try{ recognition.start(); }
+        catch{ handleError('No se pudo iniciar la escucha'); restartWakeWordDetection(); }
+      }
+    }
+
+    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para empezar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
+
+    function restartWakeWordDetection(){ if (currentMode==='voice'){ setTimeout(()=> startWakeWordDetection(), 1800); } }
+
+
+
+    // ===== API =====
+
+    async function sendToAPI(message){
+
+      const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
+      console.log('Enviando a API:', payload);
+
+      if (navigator.serviceWorker && navigator.serviceWorker.controller){
+        return new Promise((resolve,reject)=>{
+          const id = Date.now()+Math.random();
+          swRequestMap.set(id,{resolve,reject});
+          navigator.serviceWorker.controller.postMessage({type:'API_REQUEST', id, url:WEBHOOK_URL, payload});
+          if (!navigator.onLine){
+            mainStatus.textContent='Sin conexión';
+            subStatus.textContent='Intentando reconectar…';
+            updateStatus('Sin conexión','error');
+          }
+        });
+      }
+
+      currentFetchController = new AbortController();
+
+      const res = await fetch(WEBHOOK_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+        signal: currentFetchController.signal
+      });
+
+      currentFetchController = null;
+
+      if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
+
+      const data = await res.json();
+      console.log('Respuesta de API:', data);
+
+      return data.output || data.response || 'Consulta procesada correctamente.';
+
+    }
+
+
+
+    async function processVoiceInput(rawText){
+
+      const text = (rawText || "").trim();
+      console.log('Texto de voz procesado:', text);
+      if (!text){ handleError("No se detectó voz. Inténtalo de nuevo."); return; }
+
+      isProcessing = true; voiceOrb.classList.remove('listening'); voiceOrb.classList.add('processing'); orbIcon.textContent='⚡';
+
+      mainStatus.textContent='Procesando tu consulta…'; subStatus.textContent=`"${text}"`; updateStatus('Procesando','processing');
+
+      try{ const response = await sendToAPI(text); showResponse(text, response); await speakResponse(response); voiceOrb.classList.remove('processing'); voiceOrb.classList.add('success'); orbIcon.textContent='✓'; setTimeout(()=>{ voiceOrb.classList.remove('success'); resetToIdle(); }, 1500); }
+
+      catch(err){ console.error(err); handleError('No se pudo procesar la consulta'); }
+
+      finally{ isProcessing = false; }
+
+    }
+
+
+
+    // ===== TTS =====
+
+    function pickSpanishVoice(voices){
+      const esVoices = voices.filter(v=> v.lang && v.lang.toLowerCase().startsWith('es'));
+      return esVoices.find(v=>/google|chrome/i.test(v.name)) ||
+             esVoices.find(v=>/neural|enhanced/i.test(v.name)) ||
+             esVoices[0];
+    }
+
+
+
+    function listVoicesOnce(){
+      if (!('speechSynthesis' in window)) return;
+      const load = ()=>{ speechSynthesis.getVoices(); };
+      if (speechSynthesis.getVoices().length>0) load();
+      speechSynthesis.onvoiceschanged = load;
+    }
+
+
+
+    async function speakResponse(text){
+
+      return new Promise(resolve=>{
+
+        if (!('speechSynthesis' in window)){ return resolve(); }
+
+        speechSynthesis.cancel();
+        stopSpeechBtn.disabled = true;
+
+        const clean = (text||'')
+          .replace(/(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,'')
+          .replace(/[^\p{L}\p{N}\s.,;:¡!¿?'"-]/gu,'');
+
+        currentUtterance = new SpeechSynthesisUtterance(clean);
+
+        currentUtterance.lang = DEFAULT_LANG; currentUtterance.rate=1.0; currentUtterance.pitch=1.06; currentUtterance.volume=DEFAULT_VOLUME;
+
+        const voices = speechSynthesis.getVoices(); const v = pickSpanishVoice(voices); if (v) currentUtterance.voice = v;
+
+        if (v && /google|chrome/i.test(v.name)){ currentUtterance.rate=.92; currentUtterance.pitch=1.0; }
+
+
+        currentUtterance.onend = ()=> { resolve(); };
+        currentUtterance.onerror = ()=> { resolve(); };
+
+        speechSynthesis.speak(currentUtterance);
+
+      });
+
+    }
+    function updateSendButton(isCancel){
+      sendButton.textContent = isCancel ? '⏹' : '➤';
+      sendButton.setAttribute('aria-label', isCancel ? 'Finalizar' : 'Enviar');
+    }
+
+    function cancelProcessing(){
+      if (currentUtterance){
+        speechSynthesis.cancel();
+        currentUtterance = null;
+      }
+      if (currentFetchController){
+        currentFetchController.abort();
+        currentFetchController = null;
+      }
+      isProcessing = false;
+      updateSendButton(false);
+      resetTextInactivityTimer();
+    }
+
+    // ===== Text mode =====
+
+    async function sendTextMessage(){
+
+    const msg = messageInput.value.trim(); if (!msg || isProcessing) return;
+    console.log('Enviando mensaje de texto:', msg);
+
+    clearTimeout(textInactivityTimer);
+    clearInterval(textInactivityInterval);
+    inactivitySeconds = 0;
+    isProcessing = true; updateSendButton(true);
+
+      try{
+        const res = await sendToAPI(msg);
+        showResponse(msg, res);
+        speakResponse(res).catch(err => console.error(err));
+      }
+
+      catch(err){ if (err.name !== 'AbortError'){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); } }
+
+    finally{ isProcessing = false; updateSendButton(false); currentFetchController = null; messageInput.value=''; adjustTextareaHeight(); resetTextInactivityTimer(); }
+
+    }
+
+
+
+    function sendVoiceCommand(cmd){ if (currentMode==='voice') processVoiceInput(cmd); else { messageInput.value = cmd; sendTextMessage(); } }
+
+    function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
+
+
+    function switchToTextMode(){
+      console.log('Cambiando a modo texto');
+      currentMode='text';
+      textModeBtn.classList.add('active');
+      voiceModeBtn.classList.remove('active');
+      voiceInterface.classList.add('text-mode');
+      textInputArea.classList.add('show');
+      quickActions.classList.add('hide');
+      chatLog.classList.add('show');
+      isWakeWordActive = false;
+      stopWakeWordDetection();
+      messageInput.focus();
+      textModeBtn.setAttribute('aria-pressed','true');
+      voiceModeBtn.setAttribute('aria-pressed','false');
+      resetTextInactivityTimer();
+    }
+
+
+    function switchToVoiceMode(){
+      console.log('Cambiando a modo voz');
+      currentMode='voice';
+      voiceModeBtn.classList.add('active');
+      textModeBtn.classList.remove('active');
+      voiceInterface.classList.remove('text-mode');
+      textInputArea.classList.remove('show');
+      quickActions.classList.remove('hide');
+      chatLog.classList.remove('show');
+      isWakeWordActive = true;
+      startWakeWordDetection();
+      voiceModeBtn.setAttribute('aria-pressed','true');
+      textModeBtn.setAttribute('aria-pressed','false');
+      messageInput.value='';
+      adjustTextareaHeight();
+      clearTimeout(textInactivityTimer);
+      clearInterval(textInactivityInterval);
+      inactivitySeconds = 0;
+    }
+
+    function resetTextInactivityTimer(){
+      console.log('Reiniciando temporizador de inactividad');
+      clearTimeout(textInactivityTimer);
+      clearInterval(textInactivityInterval);
+      inactivitySeconds = 0;
+      if (currentMode==='text' && !isProcessing){
+        textInactivityInterval = setInterval(()=>{
+          inactivitySeconds++;
+          console.log(`Inactividad: ${inactivitySeconds} segundos`);
+          if (inactivitySeconds >= TEXT_INACTIVITY_TIMEOUT_MS/1000){
+            console.log('10 segundos de inactividad. Cambiando a modo voz y limpiando chat.');
+            clearInterval(textInactivityInterval);
+            switchToVoiceMode();
+            chatLog.innerHTML = '';
+          }
+        }, 1000);
+      }
+    }
+
+
+    // ===== Event Listeners =====
+
+    voiceOrb.addEventListener('click', ()=>{ if (currentMode==='voice' && !isListening && !isProcessing) startListening(); });
+
+
+    voiceModeBtn.addEventListener('click', switchToVoiceMode);
+
+
+    textModeBtn.addEventListener('click', switchToTextMode);
+
+
+
+    sendButton.addEventListener('click', ()=>{
+      if (isProcessing) cancelProcessing(); else sendTextMessage();
+    });
+
+    stopSpeechBtn.addEventListener('click', ()=>{
+      speechSynthesis.cancel();
+      currentUtterance = null;
+      stopSpeechBtn.disabled = true;
+    });
+
+    messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); } else resetTextInactivityTimer(); });
+
+    messageInput.addEventListener('input', ()=>{ adjustTextareaHeight(); resetTextInactivityTimer(); });
+
+
+
+    document.addEventListener('keydown', e=>{
+      if (e.code==='Space' && currentMode==='voice' && !isListening && !isProcessing){
+        e.preventDefault();
+        startListening();
+      }
+    });
+
+
+
+    // ===== Boot =====
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+
+      if ('serviceWorker' in navigator){
+        navigator.serviceWorker.register('sw.js').catch(err=>console.error('SW registro falló', err));
+      }
+
+      createParticles(); initSpeechRecognition(); initWakeWordDetection(); listVoicesOnce();
+
+      // If offline, reflect status
+
+      if (!navigator.onLine){
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      }
+
+      window.addEventListener('online', ()=>{
+        updateStatus('Sistema listo','ready');
+        mainStatus.textContent='Conexión restablecida';
+        subStatus.textContent='Procesando mensajes pendientes…';
+        if (navigator.serviceWorker.controller){
+          navigator.serviceWorker.controller.postMessage({type:'RETRY_QUEUE'});
+        }
+      });
+
+      window.addEventListener('offline', ()=>{
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      });
+
+    });
+
+
+
+    // Prevent scroll with spacebar on body
+
+    window.addEventListener('keydown', e=>{ if (e.code==='Space' && e.target===document.body) e.preventDefault(); });
+
+    window.addEventListener('resize', createParticles);
+
+  </script>
+
 
 </body>
 
