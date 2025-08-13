@@ -272,6 +272,7 @@
     </div>
   </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <script src="sanitize.js"></script>
   <script>
     // ===== Config =====
@@ -345,13 +346,12 @@ let inactivitySeconds = 0;
     function showResponse(query, response){
       if (currentMode==='voice') switchToTextMode();
       const safeQuery = sanitize(query);
-      const safeResponse = sanitize(response).replace(/\n/g,'<br>');
       const userDiv = document.createElement('div');
       userDiv.className = 'chat-message user';
       userDiv.textContent = safeQuery;
       const botDiv = document.createElement('div');
       botDiv.className = 'chat-message assistant';
-      botDiv.innerHTML = safeResponse;
+      botDiv.innerHTML = DOMPurify.sanitize(response).replace(/\n/g,'<br>');
       chatLog.appendChild(userDiv);
       chatLog.appendChild(botDiv);
       chatLog.scrollTop = chatLog.scrollHeight;
