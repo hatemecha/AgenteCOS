@@ -272,17 +272,19 @@
     </div>
   </div>
 
+
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+
     <script src="sanitize.js"></script>
-  <script>
+  <script type="module">
+    import { WEBHOOK_URL } from './config.js';
     // ===== Config =====
     const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
     const DEFAULT_VOLUME = 0.9;
-    const DEFAULT_HOST = 'http://localhost:5678';
-    const storedHost = localStorage.getItem('COS_N8N_HOST');
-    const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
+
 
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+
     const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
 
     // ===== Elements =====
@@ -306,6 +308,7 @@
     const skipMicBtn = document.getElementById('skipMicBtn');
 
     // ===== State =====
+let sessionId;
 let isListening = false, isProcessing = false, currentMode = 'voice';
 let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
 let currentUtterance = null;
@@ -316,7 +319,23 @@ let textInactivityTimer = null;
 let textInactivityInterval = null;
 let inactivitySeconds = 0;
 
+    const swRequestMap = new Map();
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.addEventListener('message', e=>{
+        const data = e.data;
+        if (data && data.id && swRequestMap.has(data.id)){
+          const {resolve,reject} = swRequestMap.get(data.id);
+          swRequestMap.delete(data.id);
+          if (data.error) reject(data.error); else resolve(data.response);
+        }
+      });
+    }
+
     // ===== Utils =====
+    function resetSession(){
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    }
+
     function createParticles(){
       const particlesContainer = document.getElementById('particles');
       particlesContainer.innerHTML = '';
@@ -502,8 +521,22 @@ let inactivitySeconds = 0;
 
     async function sendToAPI(message){
 
+      if(!sessionId) resetSession();
       const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
       console.log('Enviando a API:', payload);
+
+      if (navigator.serviceWorker && navigator.serviceWorker.controller){
+        return new Promise((resolve,reject)=>{
+          const id = Date.now()+Math.random();
+          swRequestMap.set(id,{resolve,reject});
+          navigator.serviceWorker.controller.postMessage({type:'API_REQUEST', id, url:WEBHOOK_URL, payload});
+          if (!navigator.onLine){
+            mainStatus.textContent='Sin conexión';
+            subStatus.textContent='Intentando reconectar…';
+            updateStatus('Sin conexión','error');
+          }
+        });
+      }
 
       currentFetchController = new AbortController();
 
@@ -683,6 +716,7 @@ let inactivitySeconds = 0;
       clearTimeout(textInactivityTimer);
       clearInterval(textInactivityInterval);
       inactivitySeconds = 0;
+      resetSession();
     }
 
     function resetTextInactivityTimer(){
@@ -746,15 +780,33 @@ let inactivitySeconds = 0;
 
     document.addEventListener('DOMContentLoaded', ()=>{
 
+
+      resetSession();
+
       createParticles(); initSpeechRecognition(); initWakeWordDetection(); listVoicesOnce();
 
       // If offline, reflect status
 
-      if (!navigator.onLine){ updateStatus('Sin conexión','error'); }
+      if (!navigator.onLine){
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      }
 
-      window.addEventListener('online', ()=> updateStatus('Sistema listo','ready'));
+      window.addEventListener('online', ()=>{
+        updateStatus('Sistema listo','ready');
+        mainStatus.textContent='Conexión restablecida';
+        subStatus.textContent='Procesando mensajes pendientes…';
+        if (navigator.serviceWorker.controller){
+          navigator.serviceWorker.controller.postMessage({type:'RETRY_QUEUE'});
+        }
+      });
 
-      window.addEventListener('offline', ()=> updateStatus('Sin conexión','error'));
+      window.addEventListener('offline', ()=>{
+        updateStatus('Sin conexión','error');
+        mainStatus.textContent='Sin conexión';
+        subStatus.textContent='Intentando reconectar…';
+      });
 
     });
 
@@ -767,6 +819,7 @@ let inactivitySeconds = 0;
     window.addEventListener('resize', createParticles);
 
   </script>
+
 
 </body>
 
