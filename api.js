@@ -1,6 +1,9 @@
 import { WEBHOOK_URL, sessionId } from './config.js';
 
 export async function sendToAPI(message) {
+  if (!WEBHOOK_URL) {
+    throw new Error('WEBHOOK_URL is not defined');
+  }
   const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
   const res = await fetch(WEBHOOK_URL, {
     method: 'POST',
