@@ -273,13 +273,11 @@
   </div>
 
     <script src="sanitize.js"></script>
-  <script>
+  <script type="module">
+    import { WEBHOOK_URL } from './config.js';
     // ===== Config =====
     const DEFAULT_LANG = 'es-AR'; // preferencia local (Argentina) con fallback a es-ES
     const DEFAULT_VOLUME = 0.9;
-    const DEFAULT_HOST = 'http://localhost:5678';
-    const storedHost = localStorage.getItem('COS_N8N_HOST');
-    const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
 
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
