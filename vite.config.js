@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     rollupOptions: {
-      input: 'src/main.js',
+      input: 'main.js',
       output: {
         entryFileNames: 'bundle.js'
       }
