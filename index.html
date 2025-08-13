@@ -280,8 +280,6 @@
     const DEFAULT_HOST = 'http://localhost:5678';
     const storedHost = localStorage.getItem('COS_N8N_HOST');
     const WEBHOOK_URL = `${(storedHost || DEFAULT_HOST).replace(/\/$/, '')}/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`;
-
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const TEXT_INACTIVITY_TIMEOUT_MS = 10000;
 
     // ===== Elements =====
@@ -305,6 +303,7 @@
     const skipMicBtn = document.getElementById('skipMicBtn');
 
     // ===== State =====
+let sessionId;
 let isListening = false, isProcessing = false, currentMode = 'voice';
 let recognition = null, wakeWordRecognition = null, isWakeWordActive = true;
 let currentUtterance = null;
@@ -316,6 +315,10 @@ let textInactivityInterval = null;
 let inactivitySeconds = 0;
 
     // ===== Utils =====
+    function resetSession(){
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    }
+
     function createParticles(){
       const particlesContainer = document.getElementById('particles');
       particlesContainer.innerHTML = '';
@@ -502,6 +505,7 @@ let inactivitySeconds = 0;
 
     async function sendToAPI(message){
 
+      if(!sessionId) resetSession();
       const payload = { chatInput: message, sessionId, timestamp: new Date().toISOString() };
       console.log('Enviando a API:', payload);
 
@@ -683,6 +687,7 @@ let inactivitySeconds = 0;
       clearTimeout(textInactivityTimer);
       clearInterval(textInactivityInterval);
       inactivitySeconds = 0;
+      resetSession();
     }
 
     function resetTextInactivityTimer(){
@@ -746,6 +751,7 @@ let inactivitySeconds = 0;
 
     document.addEventListener('DOMContentLoaded', ()=>{
 
+      resetSession();
       createParticles(); initSpeechRecognition(); initWakeWordDetection(); listVoicesOnce();
 
       // If offline, reflect status
