@@ -628,7 +628,11 @@ let inactivitySeconds = 0;
     inactivitySeconds = 0;
     isProcessing = true; updateSendButton(true);
 
-      try{ const res = await sendToAPI(msg); showResponse(msg, res); await speakResponse(res); }
+      try{
+        const res = await sendToAPI(msg);
+        showResponse(msg, res);
+        speakResponse(res).catch(err => console.error(err));
+      }
 
       catch(err){ if (err.name !== 'AbortError'){ console.error(err); alert('Error al procesar la consulta. Verifica tu conexión.'); } }
 
