@@ -626,10 +626,31 @@ let textInactivityTimer = null;
 
     function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
 
+
+    function switchToVoiceMode(){
+      currentMode='voice';
+      voiceModeBtn.classList.add('active');
+      textModeBtn.classList.remove('active');
+      voiceInterface.classList.remove('text-mode');
+      textInputArea.classList.remove('show');
+      quickActions.classList.remove('hide');
+      chatLog.classList.remove('show');
+      isWakeWordActive = true;
+      startWakeWordDetection();
+      voiceModeBtn.setAttribute('aria-pressed','true');
+      textModeBtn.setAttribute('aria-pressed','false');
+      messageInput.value='';
+      adjustTextareaHeight();
+      clearTimeout(textInactivityTimer);
+    }
+
     function resetTextInactivityTimer(){
       clearTimeout(textInactivityTimer);
       if (currentMode==='text' && !isProcessing){
-        textInactivityTimer = setTimeout(()=> voiceModeBtn.click(), 15000);
+
+        textInactivityTimer = setTimeout(switchToVoiceMode, 15000);
+
+
       }
     }
 
@@ -638,7 +659,9 @@ let textInactivityTimer = null;
 
     voiceOrb.addEventListener('click', ()=>{ if (currentMode==='voice' && !isListening && !isProcessing) startListening(); });
 
-    voiceModeBtn.addEventListener('click', ()=>{ currentMode='voice'; voiceModeBtn.classList.add('active'); textModeBtn.classList.remove('active'); voiceInterface.classList.remove('text-mode'); textInputArea.classList.remove('show'); quickActions.classList.remove('hide'); chatLog.classList.remove('show'); isWakeWordActive = true; startWakeWordDetection(); voiceModeBtn.setAttribute('aria-pressed','true'); textModeBtn.setAttribute('aria-pressed','false'); clearTimeout(textInactivityTimer); });
+
+    voiceModeBtn.addEventListener('click', switchToVoiceMode);
+
 
     textModeBtn.addEventListener('click', ()=>{ currentMode='text'; textModeBtn.classList.add('active'); voiceModeBtn.classList.remove('active'); voiceInterface.classList.add('text-mode'); textInputArea.classList.add('show'); quickActions.classList.add('hide'); chatLog.classList.add('show'); isWakeWordActive = false; stopWakeWordDetection(); messageInput.focus(); textModeBtn.setAttribute('aria-pressed','true'); voiceModeBtn.setAttribute('aria-pressed','false'); resetTextInactivityTimer(); });
 
