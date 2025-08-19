@@ -539,21 +539,35 @@ let inactivitySeconds = 0;
 
       currentFetchController = new AbortController();
 
-      const res = await fetch(WEBHOOK_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload),
-        signal: currentFetchController.signal
-      });
+      try{
+        const res = await fetch(WEBHOOK_URL, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload),
+          signal: currentFetchController.signal
+        });
 
-      currentFetchController = null;
+        currentFetchController = null;
 
-      if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
+        if (!res.ok){ throw new Error(`Error ${res.status}: ${res.statusText}`); }
 
-      const data = await res.json();
-      console.log('Respuesta de API:', data);
+        const data = await res.json();
+        console.log('Respuesta de API:', data);
 
-      return data.output || data.response || 'Consulta procesada correctamente.';
+        return data.output || data.response || 'Consulta procesada correctamente.';
+      }
+      catch(err){
+        currentFetchController = null;
+        console.error('Error al llamar a la API:', err);
+
+        let msg = 'Solicitud bloqueada; verifica extensiones o conexión';
+        if (!navigator.onLine || err.name === 'TypeError' || /failed to fetch/i.test(err.message)){
+          msg = 'Sin conexión; verifica Internet';
+        }
+
+        handleError(msg);
+        return 'No se pudo completar la solicitud.';
+      }
 
     }
 
