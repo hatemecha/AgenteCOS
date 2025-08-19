@@ -1,7 +1,7 @@
 const http = require('http');
 
 const PORT = process.env.PORT || 5678;
-const PATH = '/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat';
+const PATH = process.env.API_PATH || '/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat';
 
 const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === PATH) {

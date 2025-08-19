@@ -10,6 +10,12 @@ VITE_WEBHOOK_URL=http://localhost:5678/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb
 
 También puedes copiar `.env.example` a `.env` y ajustar el valor allí. Si no se define ninguna variable, se utilizará por defecto `http://localhost:5678/webhook/2c8e40bc-d18d-458e-9d02-6ca7be1eb19c/chat`.
 
+La ruta del endpoint también puede renombrarse mediante la variable `API_PATH` (o `VITE_API_PATH` en el cliente) para evitar rutas bloqueadas.
+
+```bash
+API_PATH=/mi-ruta-secreta/chat npm start
+```
+
 ## Pruebas
 
 1. Instala las dependencias:
