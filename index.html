@@ -228,7 +228,7 @@
 
       <div class="status-text">
         <div id="mainStatus" class="main-status">¡Hola! Soy tu asistente médico</div>
-        <div id="subStatus" class="sub-status">Toca el botón para empezar a conversar</div>
+        <div id="subStatus" class="sub-status">Toca el botón para comenzar a conversar</div>
         <div id="wakeWordHint" class="wake-word-hint">O simplemente di "Hola COS"</div>
       </div>
       <button id="stopSpeechBtn" class="stop-speech-btn" aria-label="Detener locución" disabled>🔇 Detener</button>
@@ -265,7 +265,7 @@
 
     <!-- Quick actions -->
     <div id="quickActions" class="quick-actions">
-      <button class="quick-action" onclick="sendVoiceCommand('Mis turnos pendientes')">📋 Mis turnos</button>
+      <button class="quick-action" onclick="sendVoiceCommand('Mis turnos pendientes')">📋 Turnos pendientes</button>
       <button class="quick-action" onclick="sendVoiceCommand('Ver turnos de hoy')">📅 Turnos de hoy</button>
       <button class="quick-action" onclick="sendVoiceCommand('Agendar nuevo turno')">➕ Nuevo turno</button>
       <button class="quick-action" onclick="sendVoiceCommand('Buscar paciente por nombre')">👤 Buscar paciente</button>
@@ -399,7 +399,7 @@ let inactivitySeconds = 0;
 
       mainStatus.textContent='¡Hola! Soy tu asistente médico';
 
-      subStatus.textContent='Toca el botón para empezar a conversar';
+        subStatus.textContent='Toca el botón para comenzar a conversar';
 
       updateStatus('Sistema listo','ready');
 
@@ -510,7 +510,7 @@ let inactivitySeconds = 0;
       }
     }
 
-    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para empezar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
+    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para comenzar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
 
     function restartWakeWordDetection(){ if (currentMode==='voice'){ setTimeout(()=> startWakeWordDetection(), 1800); } }
 
