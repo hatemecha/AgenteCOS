@@ -153,13 +153,6 @@
     .send-button:hover:not(:disabled){ transform: translateY(-1px) scale(1.04); box-shadow:0 7px 22px rgba(37,99,235,.62) }
     .send-button:disabled{ opacity:.55; cursor:not-allowed }
 
-    /* Quick actions */
-    .quick-actions{ position:absolute; bottom:1.35rem; left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:.8rem; justify-content:center; max-width:860px; transition:.45s cubic-bezier(.4,0,.2,1); }
-    .quick-actions.hide{ opacity:0; visibility:hidden; transform: translateX(-50%) translateY(18px); }
-    .quick-action{ padding:.7rem 1.25rem; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:22px; backdrop-filter: blur(16px); cursor:pointer; transition:.25s; font-size:.95rem; color:var(--text-primary); opacity:0; transform:translateY(24px); animation:up .8s ease forwards; }
-    .quick-action:nth-child(1){animation-delay:.95s} .quick-action:nth-child(2){animation-delay:1.05s} .quick-action:nth-child(3){animation-delay:1.15s} .quick-action:nth-child(4){animation-delay:1.25s}
-    .quick-action:hover{ background: rgba(37,99,235,.22); border-color: rgba(37,99,235,.44); transform:translateY(-3px); box-shadow: 0 9px 26px rgba(37,99,235,.28); }
-
     /* Chat */
     .chat-log{ position:absolute; bottom:140px; left:50%; transform:translateX(-50%); width:min(680px,92vw); max-height:60vh; overflow-y:auto; display:none; flex-direction:column; gap:.75rem; }
     .chat-log.show{ display:flex; }
@@ -181,7 +174,6 @@
       .text-input-area{ width: 94vw }
       .ring-1{width:210px;height:210px} .ring-2{width:260px;height:260px} .ring-3{width:310px;height:310px}
       .mode-toggle{ top:.75rem; right:.75rem }
-      .quick-actions{ max-width: 95vw }
     }
   </style>
 </head>
@@ -228,10 +220,9 @@
 
       <div class="status-text">
         <div id="mainStatus" class="main-status">¡Hola! Soy tu asistente médico</div>
-        <div id="subStatus" class="sub-status">Toca el botón para empezar a conversar</div>
+        <div id="subStatus" class="sub-status">Toca el botón para comenzar a conversar</div>
         <div id="wakeWordHint" class="wake-word-hint">O simplemente di "Hola COS"</div>
       </div>
-      <button id="stopSpeechBtn" class="stop-speech-btn" aria-label="Detener locución" disabled>🔇 Detener</button>
     </div>
 
     <!-- Microphone Permission Alert -->
@@ -258,17 +249,9 @@
     <!-- Text input -->
     <div id="textInputArea" class="text-input-area" role="form">
       <div class="input-container">
-        <textarea id="messageInput" class="message-input" placeholder="Escribe tu consulta (p. ej., '¿Tengo turnos pendientes?' o 'Reprogramar mi turno del 22/08')." rows="1" aria-label="Mensaje"></textarea>
+        <textarea id="messageInput" class="message-input" placeholder="Escribe tu consulta sobre tipos de turnos (p. ej., '¿Qué turnos ofrecen?')." rows="1" aria-label="Mensaje"></textarea>
         <button id="sendButton" class="send-button" aria-label="Enviar">➤</button>
       </div>
-    </div>
-
-    <!-- Quick actions -->
-    <div id="quickActions" class="quick-actions">
-      <button class="quick-action" onclick="sendVoiceCommand('Mis turnos pendientes')">📋 Mis turnos</button>
-      <button class="quick-action" onclick="sendVoiceCommand('Ver turnos de hoy')">📅 Turnos de hoy</button>
-      <button class="quick-action" onclick="sendVoiceCommand('Agendar nuevo turno')">➕ Nuevo turno</button>
-      <button class="quick-action" onclick="sendVoiceCommand('Buscar paciente por nombre')">👤 Buscar paciente</button>
     </div>
   </div>
 
@@ -298,8 +281,6 @@
     const chatLog = document.getElementById('chatLog');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
-    const stopSpeechBtn = document.getElementById('stopSpeechBtn');
-    const quickActions = document.getElementById('quickActions');
     const voiceModeBtn = document.getElementById('voiceMode');
     const textModeBtn = document.getElementById('textMode');
     const wakeWordHint = document.getElementById('wakeWordHint');
@@ -399,7 +380,7 @@ let inactivitySeconds = 0;
 
       mainStatus.textContent='¡Hola! Soy tu asistente médico';
 
-      subStatus.textContent='Toca el botón para empezar a conversar';
+        subStatus.textContent='Toca el botón para comenzar a conversar';
 
       updateStatus('Sistema listo','ready');
 
@@ -510,7 +491,7 @@ let inactivitySeconds = 0;
       }
     }
 
-    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para empezar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
+    function stopListening(){ isListening=false; voiceOrb.classList.remove('listening'); orbIcon.textContent='🎤'; if (!isProcessing){ mainStatus.textContent='¡Hola! Soy tu asistente médico'; subStatus.textContent='Toca el botón para comenzar a conversar'; updateStatus('Sistema listo','ready'); restartWakeWordDetection(); } }
 
     function restartWakeWordDetection(){ if (currentMode==='voice'){ setTimeout(()=> startWakeWordDetection(), 1800); } }
 
@@ -621,7 +602,6 @@ let inactivitySeconds = 0;
         if (!('speechSynthesis' in window)){ return resolve(); }
 
         speechSynthesis.cancel();
-        stopSpeechBtn.disabled = true;
 
         const clean = (text||'')
           .replace(/(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,'')
@@ -690,18 +670,7 @@ let inactivitySeconds = 0;
     }
 
 
-
-    function sendVoiceCommand(cmd){
-      if (currentMode === 'voice') {
-        processVoiceInput(cmd);
-      } else {
-        messageInput.value = cmd;
-        sendTextMessage();
-      }
-    }
-    window.sendVoiceCommand = sendVoiceCommand;
-
-    function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
+      function adjustTextareaHeight(){ messageInput.style.height='auto'; messageInput.style.height = Math.min(messageInput.scrollHeight, 140)+'px'; }
 
 
     function switchToTextMode(){
@@ -711,8 +680,7 @@ let inactivitySeconds = 0;
       voiceModeBtn.classList.remove('active');
       voiceInterface.classList.add('text-mode');
       textInputArea.classList.add('show');
-      quickActions.classList.add('hide');
-      chatLog.classList.add('show');
+        chatLog.classList.add('show');
       isWakeWordActive = false;
       stopWakeWordDetection();
       messageInput.focus();
@@ -729,8 +697,7 @@ let inactivitySeconds = 0;
       textModeBtn.classList.remove('active');
       voiceInterface.classList.remove('text-mode');
       textInputArea.classList.remove('show');
-      quickActions.classList.remove('hide');
-      chatLog.classList.remove('show');
+        chatLog.classList.remove('show');
       isWakeWordActive = true;
       startWakeWordDetection();
       voiceModeBtn.setAttribute('aria-pressed','true');
@@ -777,12 +744,6 @@ let inactivitySeconds = 0;
 
     sendButton.addEventListener('click', ()=>{
       if (isProcessing) cancelProcessing(); else sendTextMessage();
-    });
-
-    stopSpeechBtn.addEventListener('click', ()=>{
-      speechSynthesis.cancel();
-      currentUtterance = null;
-      stopSpeechBtn.disabled = true;
     });
 
     messageInput.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(); } else resetTextInactivityTimer(); });
